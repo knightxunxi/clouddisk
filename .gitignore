@@ -1,0 +1,23 @@
+# Qt / build
+build/
+debug/
+release/
+build_check/
+*.o
+*.obj
+*.exe
+*.dll
+*.pro.user
+.qmake.stash
+moc_*
+qrc_*
+ui_*
+
+# IDE
+.vscode/
+.qtcreator/
+.workbuddy/
+
+# local data
+*.db
+*.zip

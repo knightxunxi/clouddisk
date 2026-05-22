@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PrivateChat</class>
+ <widget class="QWidget" name="PrivateChat">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>450</width>
+    <height>400</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>私聊</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget#PrivateChat {
+    background-color: #f5f7fa;
+}</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <property name="leftMargin">
+    <number>12</number>
+   </property>
+   <property name="topMargin">
+    <number>12</number>
+   </property>
+   <property name="rightMargin">
+    <number>12</number>
+   </property>
+   <property name="bottomMargin">
+    <number>12</number>
+   </property>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QTextEdit" name="showMsg_te">
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QTextEdit {
+    background-color: #ffffff;
+    border: 1px solid #dcdfe6;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+}</string>
+       </property>
+       <property name="placeholderText">
+        <string>私聊消息将在这里显示...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QLineEdit" name="inputMsg_le">
+         <property name="styleSheet">
+          <string notr="true">QLineEdit {
+    padding: 8px 12px;
+    border: 2px solid #dcdfe6;
+    border-radius: 6px;
+    background-color: #ffffff;
+    font-size: 13px;
+    min-height: 22px;
+}
+QLineEdit:focus {
+    border-color: #409eff;
+}</string>
+         </property>
+         <property name="placeholderText">
+          <string>输入消息...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="sendMsg_pb">
+         <property name="font">
+          <font>
+           <family>Microsoft YaHei</family>
+           <pointsize>11</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+    padding: 8px 24px;
+    border: none;
+    border-radius: 6px;
+    background-color: #409eff;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: bold;
+    min-height: 22px;
+}
+QPushButton:hover {
+    background-color: #66b1ff;
+}
+QPushButton:pressed {
+    background-color: #3a8ee6;
+}</string>
+         </property>
+         <property name="text">
+          <string>发送</string>
+         </property>
+         <property name="cursor">
+          <cursorShape>PointingHandCursor</cursorShape>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
