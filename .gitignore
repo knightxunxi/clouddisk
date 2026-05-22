@@ -8,6 +8,9 @@ build_check/
 *.exe
 *.dll
 *.pro.user
+*.pro.user.*
+Makefile
+Makefile.*
 .qmake.stash
 moc_*
 qrc_*
