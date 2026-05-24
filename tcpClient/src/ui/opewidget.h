@@ -2,7 +2,9 @@
 #define OPEWIDGET_H
 
 #include <QWidget>
+#include <QLabel>
 #include <QListWidget>
+#include <QString>
 #include "book.h"
 #include "friend.h"
 #include <QStackedWidget>
@@ -15,6 +17,7 @@ public:
     static OpeWidget &getInstance();
     Friend *getFriend();
     Book *getBook();
+    void setCurrentUser(const QString &userName);
 
 signals:
 
@@ -22,6 +25,7 @@ public slots:
 
 
 private:
+    QLabel *m_pUserLabel;
     QListWidget *m_pListW;
     Friend *m_pFriend;
     Book *m_pBook;

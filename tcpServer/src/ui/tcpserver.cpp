@@ -11,6 +11,8 @@
 #include <QDateTime>
 #include <QStyle>
 #include <QBrush>
+#include <QRegularExpression>
+#include <QTimer>
 #include "mytcpserver.h"
 #include "opedb.h"
 
@@ -19,12 +21,29 @@ tcpServer::tcpServer(QWidget *parent)
     , ui(new Ui::tcpServer)
 {
     ui->setupUi(this);
+    setStyleSheet(R"(
+        QWidget {
+            font-family: "Microsoft YaHei";
+            color: #000000;
+            background-color: #f7f9fc;
+        }
+        QPushButton {
+            padding: 6px 14px;
+            border: 1px solid #b7c7d9;
+            border-radius: 4px;
+            background-color: #ffffff;
+            color: #000000;
+        }
+        QPushButton:hover {
+            background-color: #ecf5ff;
+        }
+        QPushButton:pressed {
+            background-color: #d8ebff;
+        }
+    )");
     loadConfig();
 
     MyTcpServer::getInstance().listen(QHostAddress(m_strIP), m_usPort);
-
-    // 启动时刷新一次用户列表
-    refreshUserList();
 
     // 连接信号：有用户登录或下线时自动刷新
     connect(&MyTcpServer::getInstance(), SIGNAL(userStatusChanged()),
@@ -40,10 +59,9 @@ tcpServer::tcpServer(QWidget *parent)
     connect(ui->treeFileView, SIGNAL(itemExpanded(QTreeWidgetItem*)),
             this, SLOT(onTreeItemExpanded(QTreeWidgetItem*)));
 
-    // 刷新按钮
-    connect(ui->btnRefresh, SIGNAL(clicked()), this, SLOT(on_btnRefresh_clicked()));
-
     appendLog(QString("服务器启动 %1:%2").arg(m_strIP).arg(m_usPort));
+    refreshUserList();
+    QTimer::singleShot(0, this, SLOT(refreshUserList()));
 }
 
 tcpServer::~tcpServer()
@@ -57,10 +75,13 @@ void tcpServer::loadConfig()
     if(file.open(QIODevice::ReadOnly))
     {
         QByteArray baData = file.readAll();
-        QString strData = baData.toStdString().c_str();
+        QString strData = QString::fromUtf8(baData);
         file.close();
-        strData.replace("\r\n"," ");
-        QStringList strList =  strData.split(" ");
+        QStringList strList = strData.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (strList.size() < 2) {
+            QMessageBox::critical(this, "open config", "server config format error");
+            return;
+        }
         m_strIP = strList.at(0);
         m_usPort = strList.at(1).toUShort();
         qDebug() << "IP:" << m_strIP << "port:" << m_usPort;
@@ -88,6 +109,7 @@ void tcpServer::refreshUserList()
 
     // 从数据库获取所有用户：[name, online, name, online, ...]
     QStringList allUsers = OpeDB::getInstance().getAllUsers();
+    appendLog(QString("读取数据库用户数：%1").arg(allUsers.size() / 2));
 
     int onlineCnt  = 0;
     int offlineCnt = 0;

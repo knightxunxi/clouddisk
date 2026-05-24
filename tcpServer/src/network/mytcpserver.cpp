@@ -20,8 +20,8 @@ void MyTcpServer::incomingConnection(qintptr socketDescriptor)
     pTcpSocket->setSocketDescriptor(socketDescriptor);
     m_tcpSocketList.append(pTcpSocket);
     connect(pTcpSocket, SIGNAL(offline(MyTcpSocket*)), this, SLOT(deleteSocket(MyTcpSocket*)));
-    // 登录成功时通知 UI 刷新用户列表
-    connect(pTcpSocket, SIGNAL(userLoggedIn()), this, SIGNAL(userStatusChanged()));
+    // 注册、登录等用户列表变化时通知 UI 刷新
+    connect(pTcpSocket, SIGNAL(userListChanged()), this, SIGNAL(userStatusChanged()));
 }
 
 void MyTcpServer::resend(const char *pername, PDU *pdu)

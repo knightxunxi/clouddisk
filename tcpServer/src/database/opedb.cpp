@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QDir>
 #include <QSqlError>
+#include <QRegularExpression>
 
 OpeDB::OpeDB(QObject *parent) : QObject(parent)
 {
@@ -34,9 +35,8 @@ void OpeDB::init()
     {
         QByteArray baData = file.readAll();
         file.close();
-        QString strData = baData.toStdString().c_str();
-        strData.replace("\r\n"," ");
-        QStringList strList = strData.split(" ");
+        QString strData = QString::fromUtf8(baData);
+        QStringList strList = strData.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
         if(strList.size() >= 3) {
             dbPath = strList.at(2);
         }
@@ -64,6 +64,8 @@ void OpeDB::init()
                   "FOREIGN KEY (id) REFERENCES userInfo(id), "
                   "FOREIGN KEY (friendId) REFERENCES userInfo(id))");
 
+        resetAllOnlineStatus();
+
         // 显示现有用户
         query.exec("select * from userInfo");
         while(query.next())
@@ -79,6 +81,14 @@ void OpeDB::init()
     {
         qDebug() << "数据库打开失败：" << m_db.lastError().text();
         QMessageBox::critical(NULL, "打开数据库", "打开数据库失败");
+    }
+}
+
+void OpeDB::resetAllOnlineStatus()
+{
+    QSqlQuery query(m_db);
+    if(!query.exec("UPDATE userInfo SET online=0")) {
+        qDebug() << "重置在线状态失败：" << query.lastError().text();
     }
 }
 
@@ -384,9 +394,18 @@ QStringList OpeDB::getAllUsers()
 {
     QMutexLocker locker(&m_mutex);
     QStringList result;
+    if (!m_db.isOpen()) {
+        qDebug() << "获取用户列表失败：数据库未打开";
+        return result;
+    }
+
     QSqlQuery query(m_db);
     // 在线用户在前，离线用户在后
-    query.exec("SELECT name, online FROM userInfo ORDER BY online DESC, name ASC");
+    if (!query.exec("SELECT name, online FROM userInfo ORDER BY online DESC, name ASC")) {
+        qDebug() << "获取用户列表失败：" << query.lastError().text();
+        return result;
+    }
+
     while(query.next())
     {
         result.append(query.value(0).toString());        // 用户名

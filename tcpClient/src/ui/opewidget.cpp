@@ -1,5 +1,7 @@
 #include "opewidget.h"
 #include <QFont>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
 
 OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
 {
@@ -11,10 +13,23 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
     setStyleSheet(R"(
         QWidget {
             font-family: "Microsoft YaHei";
+            color: #000000;
+        }
+        QWidget#navPanel {
+            background-color: #ffffff;
+            border-right: 1px solid #dcdfe6;
+        }
+        QLabel#userLabel {
+            background-color: #f5f7fa;
+            border-bottom: 1px solid #dcdfe6;
+            color: #000000;
+            font-size: 13px;
+            font-weight: bold;
+            padding: 12px 10px;
         }
         /* 导航列表 */
         QListWidget#navList {
-            background-color: #2c3e50;
+            background-color: #ffffff;
             border: none;
             outline: none;
             min-width: 120px;
@@ -22,22 +37,23 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
             font-size: 14px;
         }
         QListWidget#navList::item {
-            color: #bdc3c7;
+            color: #000000;
             padding: 18px 16px;
             border: none;
         }
         QListWidget#navList::item:selected {
-            background-color: #34495e;
-            color: #ffffff;
+            background-color: #d8ebff;
+            color: #000000;
             border-left: 3px solid #409eff;
         }
         QListWidget#navList::item:hover:!selected {
-            background-color: #34495e;
-            color: #ecf0f1;
+            background-color: #f0f7ff;
+            color: #000000;
         }
         /* 好友面板 - 消息区 */
         QTextEdit {
             background-color: #ffffff;
+            color: #000000;
             border: 1px solid #dcdfe6;
             border-radius: 6px;
             padding: 8px;
@@ -46,18 +62,20 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
         /* 好友/文件列表 */
         QListWidget {
             background-color: #ffffff;
+            color: #000000;
             border: 1px solid #dcdfe6;
             border-radius: 6px;
             outline: none;
             font-size: 13px;
         }
         QListWidget::item {
+            color: #000000;
             padding: 8px 10px;
             border-bottom: 1px solid #f0f0f0;
         }
         QListWidget::item:selected {
             background-color: #ecf5ff;
-            color: #409eff;
+            color: #000000;
         }
         QListWidget::item:hover:!selected {
             background-color: #f5f7fa;
@@ -68,6 +86,8 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
             border: 2px solid #dcdfe6;
             border-radius: 6px;
             background-color: #ffffff;
+            color: #000000;
+            placeholder-text-color: #606266;
             font-size: 13px;
             min-height: 22px;
         }
@@ -77,70 +97,70 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
         /* 通用按钮 - 主色(蓝) */
         QPushButton {
             padding: 8px 16px;
-            border: none;
+            border: 1px solid #b7c7d9;
             border-radius: 6px;
             font-size: 13px;
             font-weight: bold;
             min-height: 18px;
-            color: #ffffff;
+            color: #000000;
         }
         QPushButton:hover {
             opacity: 0.85;
         }
         /* 按钮分类样式通过 objectName 区分 */
         QPushButton[btnStyle="primary"] {
-            background-color: #409eff;
+            background-color: #d8ebff;
         }
         QPushButton[btnStyle="primary"]:hover {
-            background-color: #66b1ff;
+            background-color: #c6e2ff;
         }
         QPushButton[btnStyle="primary"]:pressed {
-            background-color: #3a8ee6;
+            background-color: #b3d8ff;
         }
         QPushButton[btnStyle="success"] {
-            background-color: #67c23a;
+            background-color: #e1f3d8;
         }
         QPushButton[btnStyle="success"]:hover {
-            background-color: #85ce61;
+            background-color: #d4edc9;
         }
         QPushButton[btnStyle="success"]:pressed {
-            background-color: #5daf34;
+            background-color: #c2e7b0;
         }
         QPushButton[btnStyle="warning"] {
-            background-color: #e6a23c;
+            background-color: #faecd8;
         }
         QPushButton[btnStyle="warning"]:hover {
-            background-color: #ebb563;
+            background-color: #f8dfb5;
         }
         QPushButton[btnStyle="warning"]:pressed {
-            background-color: #cf9236;
+            background-color: #f3d19e;
         }
         QPushButton[btnStyle="danger"] {
-            background-color: #f56c6c;
+            background-color: #fde2e2;
         }
         QPushButton[btnStyle="danger"]:hover {
-            background-color: #f78989;
+            background-color: #fcd3d3;
         }
         QPushButton[btnStyle="danger"]:pressed {
-            background-color: #dd6161;
+            background-color: #fab6b6;
         }
         QPushButton[btnStyle="info"] {
-            background-color: #909399;
+            background-color: #f0f2f5;
         }
         QPushButton[btnStyle="info"]:hover {
-            background-color: #a6a9ad;
+            background-color: #e4e7ed;
         }
         QPushButton[btnStyle="info"]:pressed {
-            background-color: #82848a;
+            background-color: #dcdfe6;
         }
         QPushButton[btnStyle="default"] {
             background-color: #ffffff;
-            color: #606266;
+            color: #000000;
             border: 1px solid #dcdfe6;
         }
         QPushButton[btnStyle="default"]:hover {
             background-color: #ecf5ff;
-            color: #409eff;
+            color: #000000;
             border-color: #c6e2ff;
         }
         QPushButton[btnStyle="default"]:pressed {
@@ -157,6 +177,7 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
             font-size: 13px;
             spacing: 8px;
             padding: 6px;
+            color: #000000;
         }
         QCheckBox::indicator {
             width: 16px;
@@ -171,8 +192,17 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
         }
     )");
 
+    QWidget *pNavPanel = new QWidget(this);
+    pNavPanel->setObjectName("navPanel");
+    pNavPanel->setFixedWidth(140);
+
+    m_pUserLabel = new QLabel(QStringLiteral("当前用户：\n未登录"), pNavPanel);
+    m_pUserLabel->setObjectName("userLabel");
+    m_pUserLabel->setWordWrap(true);
+    m_pUserLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
     // 导航列表
-    m_pListW = new QListWidget(this);
+    m_pListW = new QListWidget(pNavPanel);
     m_pListW->setObjectName("navList");
 
     QListWidgetItem *friendItem = new QListWidgetItem(QStringLiteral("  好友"));
@@ -182,6 +212,13 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
     QListWidgetItem *fileItem = new QListWidgetItem(QStringLiteral("  文件"));
     fileItem->setSizeHint(QSize(0, 50));
     m_pListW->addItem(fileItem);
+
+    QVBoxLayout *pNavLayout = new QVBoxLayout;
+    pNavLayout->setSpacing(0);
+    pNavLayout->setContentsMargins(0, 0, 0, 0);
+    pNavLayout->addWidget(m_pUserLabel);
+    pNavLayout->addWidget(m_pListW, 1);
+    pNavPanel->setLayout(pNavLayout);
 
     m_pFriend = new Friend;
     m_pBook = new Book;
@@ -193,7 +230,7 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
     QHBoxLayout *pMain = new QHBoxLayout;
     pMain->setSpacing(0);
     pMain->setContentsMargins(0, 0, 0, 0);
-    pMain->addWidget(m_pListW);
+    pMain->addWidget(pNavPanel);
     pMain->addWidget(m_pSW, 1);
     setLayout(pMain);
 
@@ -214,4 +251,15 @@ Friend *OpeWidget::getFriend()
 Book *OpeWidget::getBook()
 {
     return m_pBook;
+}
+
+void OpeWidget::setCurrentUser(const QString &userName)
+{
+    QString displayName = userName.trimmed();
+    if (displayName.isEmpty()) {
+        displayName = QStringLiteral("未登录");
+    }
+
+    m_pUserLabel->setText(QStringLiteral("当前用户：\n%1").arg(displayName));
+    setWindowTitle(QStringLiteral("TinyDisk - %1").arg(displayName));
 }

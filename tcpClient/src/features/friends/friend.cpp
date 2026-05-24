@@ -41,7 +41,7 @@ Friend::Friend(QWidget *parent) : QWidget(parent)
     pLeftPBVBL->setSpacing(8);
 
     QLabel *pActionLabel = new QLabel(QStringLiteral("操作"));
-    pActionLabel->setStyleSheet("color: #909399; font-size: 11px; font-weight: bold; padding-left: 2px;");
+    pActionLabel->setStyleSheet("color: #000000; font-size: 11px; font-weight: bold; padding-left: 2px;");
     pLeftPBVBL->addWidget(pActionLabel);
     pLeftPBVBL->addWidget(m_pFlushFriendPB);
     pLeftPBVBL->addWidget(m_pShowOnlineUserPB);

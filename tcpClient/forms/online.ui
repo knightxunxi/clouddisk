@@ -16,6 +16,7 @@
   <property name="styleSheet">
    <string notr="true">QWidget#Online {
     background-color: #ffffff;
+    color: #000000;
 }</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -55,7 +56,7 @@ QListWidget::item {
 }
 QListWidget::item:selected {
     background-color: #ecf5ff;
-    color: #409eff;
+    color: #000000;
 }
 QListWidget::item:hover:!selected {
     background-color: #f5f7fa;
@@ -90,19 +91,19 @@ QListWidget::item:hover:!selected {
          <property name="styleSheet">
           <string notr="true">QPushButton {
     padding: 10px 20px;
-    border: none;
+    border: 1px solid #b7c7d9;
     border-radius: 6px;
-    background-color: #409eff;
-    color: #ffffff;
+    background-color: #d8ebff;
+    color: #000000;
     font-size: 13px;
     font-weight: bold;
     min-height: 18px;
 }
 QPushButton:hover {
-    background-color: #66b1ff;
+    background-color: #c6e2ff;
 }
 QPushButton:pressed {
-    background-color: #3a8ee6;
+    background-color: #b3d8ff;
 }</string>
          </property>
          <property name="text">

@@ -44,6 +44,7 @@
        <property name="styleSheet">
         <string notr="true">QTextEdit {
     background-color: #ffffff;
+    color: #000000;
     border: 1px solid #dcdfe6;
     border-radius: 6px;
     padding: 8px;
@@ -65,6 +66,8 @@
     border: 2px solid #dcdfe6;
     border-radius: 6px;
     background-color: #ffffff;
+    color: #000000;
+    placeholder-text-color: #606266;
     font-size: 13px;
     min-height: 22px;
 }
@@ -89,19 +92,19 @@ QLineEdit:focus {
          <property name="styleSheet">
           <string notr="true">QPushButton {
     padding: 8px 24px;
-    border: none;
+    border: 1px solid #b7c7d9;
     border-radius: 6px;
-    background-color: #409eff;
-    color: #ffffff;
+    background-color: #d8ebff;
+    color: #000000;
     font-size: 13px;
     font-weight: bold;
     min-height: 22px;
 }
 QPushButton:hover {
-    background-color: #66b1ff;
+    background-color: #c6e2ff;
 }
 QPushButton:pressed {
-    background-color: #3a8ee6;
+    background-color: #b3d8ff;
 }</string>
          </property>
          <property name="text">

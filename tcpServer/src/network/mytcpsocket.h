@@ -22,7 +22,7 @@ public:
 
 signals:
     void offline(MyTcpSocket *mysocket);
-    void userLoggedIn();   // 登录成功后发出，通知 UI 刷新用户列表
+    void userListChanged();   // 注册、登录等用户列表变化后发出，通知 UI 刷新
 
 public slots:
     void recvMsg();

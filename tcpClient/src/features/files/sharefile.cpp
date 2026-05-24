@@ -33,7 +33,7 @@ ShareFile::ShareFile(QWidget *parent) : QWidget(parent)
     QHBoxLayout *pTopHBL = new QHBoxLayout;
     pTopHBL->setSpacing(10);
     QLabel *pTitleLabel = new QLabel(QStringLiteral("选择分享对象："));
-    pTitleLabel->setStyleSheet("color: #2c3e50; font-size: 14px; font-weight: bold;");
+    pTitleLabel->setStyleSheet("color: #000000; font-size: 14px; font-weight: bold;");
     pTopHBL->addWidget(pTitleLabel);
     pTopHBL->addStretch();
     pTopHBL->addWidget(m_pSelectAllPB);

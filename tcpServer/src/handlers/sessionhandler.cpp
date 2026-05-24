@@ -19,6 +19,7 @@ void MyTcpSocket::handleRegistRequest(PDU *pdu)
         strcpy(respdu->caData, REGIST_OK);
         QDir dir;
         dir.mkdir(QString("./%1").arg(caName));
+        emit userListChanged();
     } else {
         strcpy(respdu->caData, REGIST_FAILED);
     }
@@ -40,7 +41,7 @@ void MyTcpSocket::handleLoginRequest(PDU *pdu)
     if (ret) {
         strcpy(respdu->caData, LOGIN_OK);
         m_strName = caName;
-        emit userLoggedIn();
+        emit userListChanged();
     } else {
         strcpy(respdu->caData, LOGIN_FAILED);
     }

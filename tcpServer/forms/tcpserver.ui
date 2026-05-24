@@ -26,7 +26,7 @@
          <string>服务器运行中</string>
         </property>
         <property name="styleSheet">
-         <string>font-weight: bold; color: #2a7a2a; font-size: 13px;</string>
+         <string>font-weight: bold; color: #000000; font-size: 13px;</string>
         </property>
        </widget>
       </item>
@@ -75,7 +75,7 @@
           <string>在线用户 (0)</string>
          </property>
          <property name="styleSheet">
-          <string>font-weight: bold; background-color: #4CAF50; color: white; padding: 4px; border-radius: 3px;</string>
+          <string>font-weight: bold; background-color: #e1f3d8; color: #000000; padding: 4px; border-radius: 3px;</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -88,9 +88,9 @@
           <number>150</number>
          </property>
          <property name="styleSheet">
-          <string>QListWidget { border: 1px solid #aaa; border-radius: 3px; }
-QListWidget::item { padding: 4px; }
-QListWidget::item:selected { background-color: #4CAF50; color: white; }</string>
+          <string>QListWidget { border: 1px solid #aaa; border-radius: 3px; color: #000000; background-color: #ffffff; }
+QListWidget::item { padding: 4px; color: #000000; }
+QListWidget::item:selected { background-color: #d4edc9; color: #000000; }</string>
          </property>
         </widget>
        </item>
@@ -100,7 +100,7 @@ QListWidget::item:selected { background-color: #4CAF50; color: white; }</string>
           <string>离线用户 (0)</string>
          </property>
          <property name="styleSheet">
-          <string>font-weight: bold; background-color: #9E9E9E; color: white; padding: 4px; border-radius: 3px;</string>
+          <string>font-weight: bold; background-color: #f0f2f5; color: #000000; padding: 4px; border-radius: 3px;</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -113,9 +113,9 @@ QListWidget::item:selected { background-color: #4CAF50; color: white; }</string>
           <number>150</number>
          </property>
          <property name="styleSheet">
-          <string>QListWidget { border: 1px solid #aaa; border-radius: 3px; }
-QListWidget::item { padding: 4px; color: #888; }
-QListWidget::item:selected { background-color: #9E9E9E; color: white; }</string>
+          <string>QListWidget { border: 1px solid #aaa; border-radius: 3px; color: #000000; background-color: #ffffff; }
+QListWidget::item { padding: 4px; color: #000000; }
+QListWidget::item:selected { background-color: #e4e7ed; color: #000000; }</string>
          </property>
         </widget>
        </item>
@@ -132,7 +132,7 @@ QListWidget::item:selected { background-color: #9E9E9E; color: white; }</string>
           <string>网盘文件结构（点击左侧用户查看）</string>
          </property>
          <property name="styleSheet">
-          <string>font-weight: bold; background-color: #2196F3; color: white; padding: 4px; border-radius: 3px;</string>
+          <string>font-weight: bold; background-color: #d8ebff; color: #000000; padding: 4px; border-radius: 3px;</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -142,9 +142,9 @@ QListWidget::item:selected { background-color: #9E9E9E; color: white; }</string>
        <item>
         <widget class="QTreeWidget" name="treeFileView">
          <property name="styleSheet">
-          <string>QTreeWidget { border: 1px solid #aaa; border-radius: 3px; }
-QTreeWidget::item { padding: 2px; }
-QTreeWidget::item:selected { background-color: #2196F3; color: white; }</string>
+          <string>QTreeWidget { border: 1px solid #aaa; border-radius: 3px; color: #000000; background-color: #ffffff; }
+QTreeWidget::item { padding: 2px; color: #000000; }
+QTreeWidget::item:selected { background-color: #d8ebff; color: #000000; }</string>
          </property>
          <property name="headerHidden">
           <bool>false</bool>
@@ -172,7 +172,7 @@ QTreeWidget::item:selected { background-color: #2196F3; color: white; }</string>
           <string>路径：/</string>
          </property>
          <property name="styleSheet">
-          <string>color: #555; font-size: 11px; padding: 2px 4px;</string>
+          <string>color: #000000; font-size: 11px; padding: 2px 4px;</string>
          </property>
         </widget>
        </item>
@@ -195,7 +195,7 @@ QTreeWidget::item:selected { background-color: #2196F3; color: white; }</string>
          <string>运行日志</string>
         </property>
         <property name="styleSheet">
-         <string>font-weight: bold; color: #333;</string>
+         <string>font-weight: bold; color: #000000;</string>
         </property>
        </widget>
       </item>
@@ -205,7 +205,7 @@ QTreeWidget::item:selected { background-color: #2196F3; color: white; }</string>
          <bool>true</bool>
         </property>
         <property name="styleSheet">
-         <string>QTextEdit { border: 1px solid #ccc; border-radius: 3px; font-size: 11px; background: #f9f9f9; }</string>
+         <string>QTextEdit { border: 1px solid #ccc; border-radius: 3px; font-size: 11px; background: #ffffff; color: #000000; }</string>
         </property>
        </widget>
       </item>

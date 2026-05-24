@@ -18,7 +18,7 @@
     background-color: #f5f7fa;
 }
 QLabel {
-    color: #2c3e50;
+    color: #000000;
     font-size: 14px;
 }
 QLineEdit {
@@ -26,6 +26,8 @@ QLineEdit {
     border: 2px solid #dcdfe6;
     border-radius: 8px;
     background-color: #ffffff;
+    color: #000000;
+    placeholder-text-color: #606266;
     font-size: 14px;
     min-height: 20px;
 }
@@ -34,41 +36,39 @@ QLineEdit:focus {
 }
 QPushButton {
     padding: 10px 24px;
-    border: none;
+    border: 1px solid #b7c7d9;
     border-radius: 8px;
     font-size: 14px;
     font-weight: bold;
     min-height: 20px;
+    color: #000000;
 }
 QPushButton#login {
-    background-color: #409eff;
-    color: #ffffff;
+    background-color: #d8ebff;
 }
 QPushButton#login:hover {
-    background-color: #66b1ff;
+    background-color: #c6e2ff;
 }
 QPushButton#login:pressed {
-    background-color: #3a8ee6;
+    background-color: #b3d8ff;
 }
 QPushButton#zhuce {
-    background-color: #67c23a;
-    color: #ffffff;
+    background-color: #e1f3d8;
 }
 QPushButton#zhuce:hover {
-    background-color: #85ce61;
+    background-color: #d4edc9;
 }
 QPushButton#zhuce:pressed {
-    background-color: #5daf34;
+    background-color: #c2e7b0;
 }
 QPushButton#zhuxiao {
-    background-color: #909399;
-    color: #ffffff;
+    background-color: #f0f2f5;
 }
 QPushButton#zhuxiao:hover {
-    background-color: #a6a9ad;
+    background-color: #e4e7ed;
 }
 QPushButton#zhuxiao:pressed {
-    background-color: #82848a;
+    background-color: #dcdfe6;
 }</string>
   </property>
   <layout class="QVBoxLayout" name="mainVLayout">
@@ -125,7 +125,7 @@ QPushButton#zhuxiao:pressed {
         </font>
        </property>
        <property name="styleSheet">
-        <string notr="true">color: #409eff;</string>
+        <string notr="true">color: #000000;</string>
        </property>
        <property name="text">
         <string>TinyDisk</string>
@@ -159,7 +159,7 @@ QPushButton#zhuxiao:pressed {
       </font>
      </property>
      <property name="styleSheet">
-      <string notr="true">color: #909399;</string>
+      <string notr="true">color: #000000;</string>
      </property>
      <property name="text">
       <string>局域网云盘系统</string>

@@ -18,7 +18,7 @@ public:
     void resend(const char *pername, PDU *pdu);
 
 signals:
-    // 任意用户登录或下线时发出此信号，UI 收到后刷新用户列表
+    // 任意用户注册、登录或下线时发出此信号，UI 收到后刷新用户列表
     void userStatusChanged();
 
 public slots:

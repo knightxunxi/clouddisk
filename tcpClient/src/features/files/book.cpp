@@ -58,7 +58,7 @@ Book::Book(QWidget *parent) : QWidget(parent)
     QVBoxLayout *pDirVBL = new QVBoxLayout;
     pDirVBL->setSpacing(8);
     QLabel *pDirLabel = new QLabel(QStringLiteral("目录操作"));
-    pDirLabel->setStyleSheet("color: #909399; font-size: 11px; font-weight: bold; padding-left: 2px;");
+    pDirLabel->setStyleSheet("color: #000000; font-size: 11px; font-weight: bold; padding-left: 2px;");
     pDirVBL->addWidget(pDirLabel);
     pDirVBL->addWidget(m_pReturnPB);
     pDirVBL->addWidget(m_pCreateDirPB);
@@ -71,7 +71,7 @@ Book::Book(QWidget *parent) : QWidget(parent)
     QVBoxLayout *pFileVBL = new QVBoxLayout;
     pFileVBL->setSpacing(8);
     QLabel *pFileLabel = new QLabel(QStringLiteral("文件操作"));
-    pFileLabel->setStyleSheet("color: #909399; font-size: 11px; font-weight: bold; padding-left: 2px;");
+    pFileLabel->setStyleSheet("color: #000000; font-size: 11px; font-weight: bold; padding-left: 2px;");
     pFileVBL->addWidget(pFileLabel);
     pFileVBL->addWidget(m_pUploadFilePB);
     pFileVBL->addWidget(m_pDownLoadFilePB);

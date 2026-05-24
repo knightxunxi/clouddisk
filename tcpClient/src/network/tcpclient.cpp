@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QMessageBox>
 #include <QHostAddress>
+#include <QRegularExpression>
 #include "privatechat.h"
 
 /* ========== DownloadThread 实现 ========== */
@@ -126,9 +127,12 @@ void tcpClient::loadConfig()
     {
         QByteArray baData = file.readAll();
         file.close();
-        QString strData = baData.toStdString().c_str();
-        strData.replace("\r\n"," ");
-        QStringList strList =  strData.split(" ");
+        QString strData = QString::fromUtf8(baData);
+        QStringList strList = strData.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (strList.size() < 2) {
+            QMessageBox::critical(this, "open config", "client config format error");
+            return;
+        }
         m_strIP = strList.at(0);
         m_usPort = strList.at(1).toUShort();
        // qDebug() << "IP:" << m_strIP << "port:" << m_usPort;
@@ -274,6 +278,7 @@ void tcpClient::recvMsg()
             {
                 m_strCurPath = QString("./%1").arg(m_strLoginName);
                 QMessageBox::information(this, "登录", LOGIN_OK);
+                OpeWidget::getInstance().setCurrentUser(m_strLoginName);
                 OpeWidget::getInstance().show();
                 this->hide();
             }
