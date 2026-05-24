@@ -9,6 +9,7 @@
 #include <QMutex>
 #include <QWaitCondition>
 #include "protocol.h"
+#include "packetcodec.h"
 #include "opewidget.h"
 
 QT_BEGIN_NAMESPACE
@@ -79,11 +80,14 @@ private slots:
     void onDownloadFinished(bool success, const QString &msg);
 
 private:
+    void handleDownloadData(const QByteArray &buffer);
+
     Ui::tcpClient *ui;
     QString m_strIP;
     quint16 m_usPort;
 
     QTcpSocket m_tcpSocket;
+    PacketCodec m_packetCodec;
     QString m_strLoginName;
     QString m_strCurPath;
 

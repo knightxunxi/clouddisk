@@ -7,8 +7,11 @@ CONFIG += c++11
 include(../common/protocol/protocol.pri)
 
 INCLUDEPATH += \
+    $$PWD/src/handlers \
     $$PWD/src/network \
     $$PWD/src/database \
+    $$PWD/src/storage \
+    $$PWD/src/workers \
     $$PWD/src/ui
 
 # The following define makes your compiler emit warnings if you use
@@ -24,15 +27,23 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     src/main.cpp \
+    src/handlers/filehandler.cpp \
+    src/handlers/friendhandler.cpp \
+    src/handlers/requestdispatcher.cpp \
+    src/handlers/sessionhandler.cpp \
     src/network/mytcpserver.cpp \
     src/network/mytcpsocket.cpp \
     src/database/opedb.cpp \
+    src/storage/storageservice.cpp \
+    src/workers/fileworker.cpp \
     src/ui/tcpserver.cpp
 
 HEADERS += \
     src/network/mytcpserver.h \
     src/network/mytcpsocket.h \
     src/database/opedb.h \
+    src/storage/storageservice.h \
+    src/workers/fileworker.h \
     src/ui/tcpserver.h
 
 FORMS += \

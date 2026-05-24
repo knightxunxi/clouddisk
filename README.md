@@ -47,6 +47,8 @@ TinyDisk-main/
 │   └── protocol/              # PDU 协议定义与 qmake 引入文件
 │       ├── protocol.h
 │       ├── protocol.cpp
+│       ├── packetcodec.h
+│       ├── packetcodec.cpp
 │       └── protocol.pri
 │
 ├── tcpClient/                 # 客户端项目
@@ -73,7 +75,10 @@ TinyDisk-main/
     │   └── config.qrc
     └── src/
         ├── main.cpp
+        ├── handlers/          # 服务端请求分发与业务处理
         ├── database/          # SQLite 访问层
+        ├── storage/           # 服务端文件系统操作
+        ├── workers/           # 文件传输、复制、删除等后台任务
         ├── network/           # TCP Server 与客户端 Socket
         └── ui/                # 服务端管理界面
 ```
@@ -166,5 +171,9 @@ mingw32-make -j4
 ## 开发备注
 
 - 客户端和服务端通过 `common/protocol/protocol.pri` 共享同一份协议代码。
-- 文件传输目前基于同一条 TCP 连接在 PDU 消息和裸文件流之间切换。
-- 后续如需提升稳定性，建议优先重构 TCP 拆包/粘包处理，并将文件流也封装成明确长度的数据帧。
+- 普通 PDU 收包通过 `common/protocol/PacketCodec` 缓冲解析，避免直接假定一次 socket 读取就是完整包。
+- 服务端 `MyTcpSocket::recvMsg()` 只负责收包循环，具体注册/好友/文件请求已拆到 `tcpServer/src/handlers`。
+- 服务端文件路径解析、目录列表、删除、重命名、移动等文件系统操作已集中到 `tcpServer/src/storage/StorageService`。
+- 服务端后台文件任务已拆到 `tcpServer/src/workers/FileWorker`，`MyTcpSocket` 只保留线程启动和信号连接。
+- 文件传输目前仍基于同一条 TCP 连接在 PDU 消息和裸文件流之间切换。
+- 后续如需继续提升稳定性，建议将文件流也封装成明确长度的数据帧，并继续拆分上传/下载传输状态。

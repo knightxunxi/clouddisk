@@ -236,16 +236,23 @@ void tcpClient::showConnect()
     QMessageBox::information(this, "连接服务器", "连接服务器成功");
 }
 
+void tcpClient::handleDownloadData(const QByteArray &buffer)
+{
+    qint64 bytesRead = buffer.size();
+    if (bytesRead > 0 && m_downloadThread) {
+        m_downloadThread->enqueueData(buffer);
+    }
+}
+
 void tcpClient::recvMsg()
 {
     if(!OpeWidget::getInstance().getBook()->getDownloadStatus())
     {
-        qDebug() << m_tcpSocket.bytesAvailable();
-        unit uiPDULen = 0;
-        m_tcpSocket.read((char*)&uiPDULen, sizeof(unit));
-        unit uiMsgLen = uiPDULen - sizeof(PDU);
-        PDU *pdu = mkPDU(uiMsgLen);
-        m_tcpSocket.read((char*)pdu + sizeof(unit), uiPDULen - sizeof(unit));
+        m_packetCodec.append(m_tcpSocket.readAll());
+        PDU *pdu = nullptr;
+        while(!OpeWidget::getInstance().getBook()->getDownloadStatus()
+              && (pdu = m_packetCodec.takePacket()) != nullptr)
+        {
     //    qDebug() << pdu->uiMsgType << (char*)pdu->caMsg;
         switch (pdu->uiMsgType)
         {
@@ -489,16 +496,18 @@ void tcpClient::recvMsg()
         }
         free(pdu);
         pdu = NULL;
+        }
+
+        if(OpeWidget::getInstance().getBook()->getDownloadStatus())
+        {
+            handleDownloadData(m_packetCodec.takeBufferedData());
+        }
     }
     else
     {
         // 下载模式：从 socket 读取裸数据，交给 DownloadThread 写入磁盘
-        QByteArray buffer = m_tcpSocket.readAll();
-        qint64 bytesRead = buffer.size();
-        if (bytesRead > 0 && m_downloadThread) {
-            m_downloadThread->enqueueData(buffer);
-            // 注意：进度更新移至 onDownloadBytesWritten 回调
-        }
+        handleDownloadData(m_tcpSocket.readAll());
+        // 注意：进度更新移至 onDownloadBytesWritten 回调
     }
 }
 

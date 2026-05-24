@@ -51,12 +51,59 @@ TinyDisk-main/
 - 所有 `#include "protocol.h"` 均通过共享模块解析。
 - 仓库中只剩一份协议定义。
 
+## 第二阶段：PDU 收包 codec
+
+共享协议抽取后，新增 `PacketCodec` 处理普通 PDU 模式下的 TCP 缓冲区：
+
+- 通过内部 `QByteArray` 累积 socket 收到的数据。
+- 只有收到完整 PDU 后才返回可处理的 `PDU*`。
+- 一次 `readyRead` 中包含多个 PDU 时，可以逐个取出处理。
+- 发现异常 PDU 长度时清空缓冲区，避免继续按错误长度解析。
+- 在客户端进入下载模式、服务端进入上传模式时，将 codec 中剩余数据转交给原有文件裸流处理逻辑。
+
+本阶段保持现有文件传输行为不变：文件内容仍然在同一条 TCP 连接上以裸数据流传输，只是普通 PDU 收包不再直接从 socket 中假定一次读完整包。
+
+## 第三阶段：服务端请求处理拆分
+
+`MyTcpSocket::recvMsg()` 原本同时承担 socket 读取、PDU 分发、账号逻辑、好友逻辑和文件操作，函数体过长，后续维护成本较高。本阶段先做低风险拆分：
+
+- `MyTcpSocket::recvMsg()` 保留 socket 收包循环和上传裸流接收。
+- 新增 `tcpServer/src/handlers/requestdispatcher.cpp`，集中按 `ENUM_MSG_TYPE_*` 分发请求。
+- 新增 `sessionhandler.cpp`，处理注册、登录、在线用户、搜索用户。
+- 新增 `friendhandler.cpp`，处理好友申请、好友列表、删除好友、私聊、群聊。
+- 新增 `filehandler.cpp`，处理目录、文件、上传、下载、分享、移动。
+- 仍然使用 `MyTcpSocket` 私有成员函数承载业务，避免本阶段大范围修改状态访问和信号连接方式。
+
+本阶段的目标不是改变业务行为，而是降低 `MyTcpSocket` 单文件复杂度，为后续将文件系统操作抽成 `storage/service` 做准备。
+
+## 第四阶段：服务端 storage 模块
+
+文件 handler 拆分后，`filehandler.cpp` 仍然直接处理大量路径拼接、目录列表、文件删除、重命名和移动逻辑。本阶段新增 `tcpServer/src/storage/StorageService`：
+
+- 统一从 PDU 消息体解析路径，处理尾部 `\0`。
+- 统一拼接父目录与子文件/目录名。
+- 封装创建目录、目录列表、文件/目录判断、删除文件、重命名和移动文件。
+- 封装上传断点续传校验和下载文件大小/跳过字节计算。
+- 分享接收方目标路径由 storage 模块统一生成。
+
+`filehandler.cpp` 现在主要负责解析业务字段、组装响应 PDU、启动异步 `FileWorker`，文件系统细节集中到 `StorageService`。这一步仍然不改变现有通信协议和文件传输模式。
+
+## 第五阶段：后台文件任务模块
+
+`FileWorker` 原本定义在 `MyTcpSocket` 头文件中、实现放在 `mytcpsocket.cpp` 顶部，使 socket 连接类暴露了文件复制、目录递归删除、下载分块发送等后台任务细节。本阶段将其移入独立模块：
+
+- 新增 `tcpServer/src/workers/fileworker.h`。
+- 新增 `tcpServer/src/workers/fileworker.cpp`。
+- `MyTcpSocket` 头文件只保留 `FileWorker` 前向声明。
+- `mytcpsocket.cpp` 负责启动 worker、连接信号、接收数据块写入 socket。
+- `filehandler.cpp` 在需要删除目录、下载文件、接受分享复制时创建对应 worker。
+
+这一步让网络连接类、业务 handler、文件系统 service、后台任务 worker 四类职责更清楚，也降低了 `mytcpsocket.h` 被其它文件包含时的编译耦合。
+
 ## 后续建议
 
-共享协议抽取完成后，下一阶段可以继续拆分 TCP 收包/发包逻辑：
+共享协议和普通 PDU codec 完成后，下一阶段可以继续拆分网络与业务逻辑：
 
-- 新增 `PacketCodec` 处理 PDU 编解码。
-- 新增 socket 缓冲区，统一处理粘包和半包。
-- 将服务端 `MyTcpSocket::recvMsg()` 中的业务分发拆到 handler/service。
-- 将文件路径校验和文件系统操作抽到服务端 `storage` 模块。
-
+- 将文件流也封装为明确长度的数据帧，逐步移除“PDU 模式/裸流模式”切换。
+- 为 `StorageService` 增加路径越界校验，避免客户端传入非预期目录。
+- 将上传/下载状态抽成独立传输会话对象，减少 `MyTcpSocket` 中的传输状态字段。
