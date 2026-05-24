@@ -19,6 +19,17 @@ public:
     };
 
     static QString pathFromPduMessage(const char *data, int length);
+    static QString userRootPath(const QString &userName);
+    static bool isSafeName(const QString &name);
+    static bool resolveUserPath(const QString &userName,
+                                const QString &path,
+                                QString *resolvedPath);
+    static bool resolveUserChildPath(const QString &userName,
+                                     const QString &parentPath,
+                                     const QString &childName,
+                                     QString *resolvedPath);
+    static bool resolveSharedSourcePath(const QString &path,
+                                        QString *resolvedPath);
     static QString childPath(const QString &parentPath, const QString &name);
     static QString shareTargetPath(const QString &receiverName, const QString &sharePath);
 
