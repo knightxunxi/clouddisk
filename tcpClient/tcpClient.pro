@@ -4,8 +4,9 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
 
+include(../common/protocol/protocol.pri)
+
 INCLUDEPATH += \
-    $$PWD/src/core \
     $$PWD/src/network \
     $$PWD/src/ui \
     $$PWD/src/features/friends \
@@ -17,7 +18,6 @@ INCLUDEPATH += \
 
 SOURCES += \
     src/main.cpp \
-    src/core/protocol.cpp \
     src/network/tcpclient.cpp \
     src/ui/opewidget.cpp \
     src/features/friends/friend.cpp \
@@ -27,7 +27,6 @@ SOURCES += \
     src/features/files/sharefile.cpp
 
 HEADERS += \
-    src/core/protocol.h \
     src/network/tcpclient.h \
     src/ui/opewidget.h \
     src/features/friends/friend.h \

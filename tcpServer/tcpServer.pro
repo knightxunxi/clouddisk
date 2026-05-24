@@ -4,8 +4,9 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++11
 
+include(../common/protocol/protocol.pri)
+
 INCLUDEPATH += \
-    $$PWD/src/core \
     $$PWD/src/network \
     $$PWD/src/database \
     $$PWD/src/ui
@@ -23,14 +24,12 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     src/main.cpp \
-    src/core/protocol.cpp \
     src/network/mytcpserver.cpp \
     src/network/mytcpsocket.cpp \
     src/database/opedb.cpp \
     src/ui/tcpserver.cpp
 
 HEADERS += \
-    src/core/protocol.h \
     src/network/mytcpserver.h \
     src/network/mytcpsocket.h \
     src/database/opedb.h \
