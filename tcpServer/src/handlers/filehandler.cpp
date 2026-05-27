@@ -1,6 +1,7 @@
 #include "mytcpsocket.h"
 #include "mytcpserver.h"
 #include "fileworker.h"
+#include "pdufieldcodec.h"
 #include "storageservice.h"
 
 #include <QByteArray>
@@ -10,16 +11,6 @@
 #include <cstring>
 
 namespace {
-
-QString fixedString(const char *data, int length)
-{
-    QByteArray bytes(data, length);
-    const int terminator = bytes.indexOf('\0');
-    if (terminator >= 0) {
-        bytes.truncate(terminator);
-    }
-    return QString::fromUtf8(bytes).trimmed();
-}
 
 void sendSimpleResponse(MyTcpSocket *socket, unit msgType, const char *message)
 {
@@ -37,10 +28,9 @@ void sendFileListResponse(MyTcpSocket *socket, const QFileInfoList &fileList)
     respdu->uiMsgType = ENUM_MSG_TYPE_FLUSH_FILE_RESPOND;
     for (int i = 0; i < fileCount; i++) {
         FileInfo *pFileInfo = (FileInfo*)(respdu->caMsg) + i;
-        const QByteArray fileName = fileList[i].fileName().toUtf8();
-        memcpy(pFileInfo->caFileName,
-               fileName.constData(),
-               qMin(fileName.size(), static_cast<int>(sizeof(pFileInfo->caFileName) - 1)));
+        PduFieldCodec::writeFixedString(pFileInfo->caFileName,
+                                         sizeof(pFileInfo->caFileName),
+                                         fileList[i].fileName());
         pFileInfo->iFileType = fileList[i].isDir() ? 0 : 1;
     }
 
@@ -55,7 +45,7 @@ void MyTcpSocket::handleCreateDirRequest(PDU *pdu)
     QString strCurPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strCurPath;
-    const QString strNewPath = fixedString(pdu->caData + 32, 32);
+    const QString strNewPath = PduFieldCodec::fixedString(pdu->caData + 32, 32);
 
     StorageService::CreateDirResult result = StorageService::ParentDirNotExist;
     if (StorageService::resolveUserPath(m_strName, strCurPathRaw, &strCurPath)
@@ -92,7 +82,7 @@ void MyTcpSocket::handleFlushFileRequest(PDU *pdu)
 
 void MyTcpSocket::handleDeleteDirRequest(PDU *pdu)
 {
-    const QString strDirName = fixedString(pdu->caData, 32);
+    const QString strDirName = PduFieldCodec::fixedString(pdu->caData, 32);
     QString strDirPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strPath;
@@ -117,8 +107,8 @@ void MyTcpSocket::handleDeleteDirRequest(PDU *pdu)
 
 void MyTcpSocket::handleRenameFileRequest(PDU *pdu)
 {
-    const QString oldFileName = fixedString(pdu->caData, 32);
-    const QString newFileName = fixedString(pdu->caData + 32, 32);
+    const QString oldFileName = PduFieldCodec::fixedString(pdu->caData, 32);
+    const QString newFileName = PduFieldCodec::fixedString(pdu->caData + 32, 32);
     QString strPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strOldPath;
@@ -136,7 +126,7 @@ void MyTcpSocket::handleRenameFileRequest(PDU *pdu)
 
 void MyTcpSocket::handleEnterDirRequest(PDU *pdu)
 {
-    const QString caEnterDirName = fixedString(pdu->caData, 32);
+    const QString caEnterDirName = PduFieldCodec::fixedString(pdu->caData, 32);
     QString strPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strNewPath;
@@ -153,50 +143,40 @@ void MyTcpSocket::handleEnterDirRequest(PDU *pdu)
 
 void MyTcpSocket::handleUploadFileRequest(PDU *pdu)
 {
-    char uploadFileName[32] = {'\0'};
-    qint64 uploadFileSize = 0;
-    qint64 uploadedSize   = 0;
-    sscanf(pdu->caData, "%31s %lld %lld",
-           uploadFileName, &uploadFileSize, &uploadedSize);
+    const PduFieldCodec::UploadFileRequest request =
+            PduFieldCodec::uploadFileRequest(pdu->caData);
     QString strPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strNewPath;
 
     bool openSuccess = false;
-    if (StorageService::resolveUserChildPath(m_strName, strPathRaw,
-                                             QString::fromUtf8(uploadFileName),
-                                             &strNewPath)
-            && uploadFileSize >= 0
-            && uploadedSize >= 0
-            && uploadedSize <= uploadFileSize) {
-        m_file.setFileName(strNewPath);
-        if (uploadedSize == 0) {
-            if (m_file.open(QIODevice::WriteOnly)) {
-                m_bUpload   = true;
-                m_iTotal    = uploadFileSize;
-                m_iReceived = 0;
-                openSuccess = true;
-            }
-        } else {
-            if (StorageService::canResumeUpload(strNewPath, uploadedSize)) {
-                if (m_file.open(QIODevice::ReadWrite | QIODevice::Append)) {
-                    m_bUpload   = true;
-                    m_iTotal    = uploadFileSize;
-                    m_iReceived = uploadedSize;
-                    openSuccess = true;
-                }
-            }
-        }
+    if (request.valid
+            && StorageService::resolveUserChildPath(m_strName, strPathRaw,
+                                                    request.fileName,
+                                                    &strNewPath)) {
+        openSuccess = m_uploadSession.start(strNewPath,
+                                            request.fileSize,
+                                            request.transferredSize);
     }
 
-    if (!openSuccess) {
+    if (openSuccess && m_uploadSession.isComplete()) {
+        m_uploadSession.reset();
+        sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_OK);
+    } else if (openSuccess) {
+        sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_RESUME);
+    } else {
         sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_FAILED);
     }
 }
 
+void MyTcpSocket::handleUploadFileDataRequest(PDU *pdu)
+{
+    handleUploadData(QByteArray(pdu->caMsg, static_cast<int>(pdu->uiMsgLen)));
+}
+
 void MyTcpSocket::handleDeleteFileRequest(PDU *pdu)
 {
-    const QString strFileName = fixedString(pdu->caData, 32);
+    const QString strFileName = PduFieldCodec::fixedString(pdu->caData, 32);
     QString strDirPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strPath;
@@ -215,26 +195,28 @@ void MyTcpSocket::handleDeleteFileRequest(PDU *pdu)
 
 void MyTcpSocket::handleDownloadFileRequest(PDU *pdu)
 {
-    char caFileName[32] = {'\0'};
-    qint64 downloadedSize = 0;
-    sscanf(pdu->caData, "%31s %lld", caFileName, &downloadedSize);
+    const PduFieldCodec::DownloadFileRequest request =
+            PduFieldCodec::downloadFileRequest(pdu->caData);
     QString strPathRaw = StorageService::pathFromPduMessage(
                 pdu->caMsg, static_cast<int>(pdu->uiMsgLen));
     QString strNewPath;
 
     StorageService::DownloadInfo downloadInfo;
-    if (StorageService::resolveUserChildPath(m_strName, strPathRaw,
-                                             QString::fromUtf8(caFileName),
-                                             &strNewPath)
-            && downloadedSize >= 0
+    if (request.valid
+            && StorageService::resolveUserChildPath(m_strName, strPathRaw,
+                                                    request.fileName,
+                                                    &strNewPath)
             && StorageService::isFile(strNewPath)) {
-        downloadInfo = StorageService::downloadInfo(strNewPath, downloadedSize);
+        downloadInfo = StorageService::downloadInfo(strNewPath,
+                                                    request.transferredSize);
     }
 
     PDU *respdu = mkPDU(0);
     respdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_RESPOND;
-    sprintf(respdu->caData, "%s %lld %lld",
-            caFileName, downloadInfo.fileSize, downloadInfo.skipSize);
+    PduFieldCodec::writeDownloadFileResponse(respdu->caData,
+                                             request.fileName,
+                                             downloadInfo.fileSize,
+                                             downloadInfo.skipSize);
     write((char*)respdu, respdu->uiPDULen);
     free(respdu); respdu = nullptr;
 
@@ -247,11 +229,11 @@ void MyTcpSocket::handleDownloadFileRequest(PDU *pdu)
 
 void MyTcpSocket::handleShareFileRequest(PDU *pdu)
 {
-    char strSendName[32] = {'\0'};
-    int shareNum = 0;
-    sscanf(pdu->caData, "%31s %d", strSendName, &shareNum);
+    const PduFieldCodec::ShareRequestData shareRequest =
+            PduFieldCodec::shareRequestData(pdu->caData);
+    const int shareNum = shareRequest.receiverCount;
     const int size = shareNum * 32;
-    if (shareNum < 0 || size > static_cast<int>(pdu->uiMsgLen)) {
+    if (!shareRequest.valid || size > static_cast<int>(pdu->uiMsgLen)) {
         sendSimpleResponse(this, ENUM_MSG_TYPE_SHARE_FILE_RESPOND, SHARE_FILE_FAILED);
         return;
     }
@@ -260,7 +242,7 @@ void MyTcpSocket::handleShareFileRequest(PDU *pdu)
                 (char*)(pdu->caMsg) + size,
                 static_cast<int>(pdu->uiMsgLen) - size);
     QString resolvedSharePath;
-    if (QString::fromUtf8(strSendName) != m_strName
+    if (shareRequest.senderName != m_strName
             || !StorageService::resolveUserPath(m_strName,
                                                 strSharePath,
                                                 &resolvedSharePath)
@@ -272,13 +254,14 @@ void MyTcpSocket::handleShareFileRequest(PDU *pdu)
 
     PDU *respdu = mkPDU(pdu->uiMsgLen - size);
     respdu->uiMsgType = ENUM_MSG_TYPE_SHARE_FILE_NOTE_REQUEST;
-    strcpy(respdu->caData, strSendName);
+    PduFieldCodec::writeFixedString(respdu->caData, sizeof(respdu->caData),
+                                    shareRequest.senderName);
     memcpy(respdu->caMsg, (char*)(pdu->caMsg) + size, pdu->uiMsgLen - size);
 
     char caReceiveName[32] = {'\0'};
     for (int i = 0; i < shareNum; i++) {
         memcpy(caReceiveName, (char*)(pdu->caMsg) + i * 32, 32);
-        const QString receiveName = fixedString(caReceiveName, 32);
+        const QString receiveName = PduFieldCodec::fixedString(caReceiveName, 32);
         if (StorageService::isSafeName(receiveName)) {
             const QByteArray receiveNameBytes = receiveName.toUtf8();
             MyTcpServer::getInstance().resend(receiveNameBytes.constData(), respdu);
@@ -318,17 +301,17 @@ void MyTcpSocket::handleShareFileNoteRespond(PDU *pdu)
 
 void MyTcpSocket::handleMoveFileRequest(PDU *pdu)
 {
-    char caFileName[32] = {'\0'};
-    int srcLen = 0, destLen = 0;
-    sscanf(pdu->caData, "%d%d%31s", &srcLen, &destLen, caFileName);
+    const PduFieldCodec::MoveFileRequestData request =
+            PduFieldCodec::moveFileRequestData(pdu->caData);
+    const int srcLen = request.sourcePathLength;
+    const int destLen = request.destPathLength;
     QString strSrcPath;
     QString strDestPath;
     QString strSrcPathRaw;
     QString strDestPathRaw;
-    const QString fileName = QString::fromUtf8(caFileName);
+    const QString fileName = request.fileName;
 
-    if (srcLen > 0
-            && destLen > 0
+    if (request.valid
             && srcLen + 1 + destLen <= static_cast<int>(pdu->uiMsgLen)) {
         strSrcPathRaw = StorageService::pathFromPduMessage(
                     pdu->caMsg, srcLen);

@@ -4,8 +4,8 @@
 #include <QTcpSocket>
 #include "protocol.h"
 #include "packetcodec.h"
+#include "uploadsession.h"
 #include <QByteArray>
-#include <QFile>
 #include <QString>
 
 class FileWorker;
@@ -58,6 +58,7 @@ private:
     void handleRenameFileRequest(PDU *pdu);
     void handleEnterDirRequest(PDU *pdu);
     void handleUploadFileRequest(PDU *pdu);
+    void handleUploadFileDataRequest(PDU *pdu);
     void handleDeleteFileRequest(PDU *pdu);
     void handleDownloadFileRequest(PDU *pdu);
     void handleShareFileRequest(PDU *pdu);
@@ -65,12 +66,8 @@ private:
     void handleMoveFileRequest(PDU *pdu);
 
     QString  m_strName;
-    QFile    m_file;        // 仅用于接收上传数据时写文件
-    qint64   m_iTotal    = 0;
-    qint64   m_iReceived = 0;
-    bool     m_bUpload   = false;
-
     PacketCodec m_packetCodec;
+    UploadSession m_uploadSession;
     FileWorker *m_fileWorker = nullptr;  // 当前文件工作线程
 };
 

@@ -1,5 +1,6 @@
 #include "privatechat.h"
 #include "ui_privatechat.h"
+#include "pdufieldcodec.h"
 #include "protocol.h"
 #include "tcpclient.h"
 #include <QMessageBox>
@@ -37,9 +38,9 @@ void PrivateChat::updateMsg(const PDU *pdu)
     {
         return;
     }
-    char sourceName[32] = {'\0'};
-    memcpy(sourceName, pdu->caData, 32);
-    QString strMsg = QString("%1 says: %2").arg(sourceName).arg((char*)pdu->caMsg);
+    QString strMsg = QString("%1 says: %2")
+            .arg(PduFieldCodec::fixedString(pdu->caData, 32))
+            .arg(PduFieldCodec::messageString(pdu));
     ui->showMsg_te->append(strMsg);
 }
 
@@ -53,12 +54,11 @@ void PrivateChat::on_sendMsg_pb_clicked()
     }
     else
     {
-        PDU *pdu = mkPDU(strMsg.size() + 1);
+        PDU *pdu = mkPDU(strMsg.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_PRIVATE_CHAT_REQUEST;
 
-        memcpy(pdu->caData, m_strLoginName.toStdString().c_str(), 32);
-        memcpy(pdu->caData + 32, m_strChatName.toStdString().c_str(), 32);
-        strcpy((char*)pdu->caMsg, strMsg.toStdString().c_str());
+        PduFieldCodec::writeFixedPair(pdu->caData, m_strLoginName, m_strChatName);
+        PduFieldCodec::writeMessage(pdu, strMsg);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;

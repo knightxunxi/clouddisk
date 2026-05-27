@@ -55,6 +55,9 @@ void MyTcpSocket::handlePdu(PDU *pdu)
     case ENUM_MSG_TYPE_UPLOAD_FILE_REQUEST:
         handleUploadFileRequest(pdu);
         break;
+    case ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST:
+        handleUploadFileDataRequest(pdu);
+        break;
     case ENUM_MSG_TYPE_DELETE_FILE_REQUEST:
         handleDeleteFileRequest(pdu);
         break;

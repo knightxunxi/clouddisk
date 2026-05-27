@@ -72,6 +72,10 @@ enum ENUM_MSG_TYPE{
     ENUM_MSG_TYPE_MOVE_FILE_REQUEST,   //移动文件请求
     ENUM_MSG_TYPE_MOVE_FILE_RESPOND,   //移动文件回复
 
+    ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST,   //上传文件数据帧
+    ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND, //下载文件数据帧
+    ENUM_MSG_TYPE_CANCEL_DOWNLOAD_REQUEST,    //取消/暂停下载请求
+
     ENUM_MSG_TYPE_MAX = 0x00ffffff
 };
 
@@ -150,5 +154,9 @@ PDU *mkPDU(unit uiMsgLen);
  * 下载响应 (ENUM_MSG_TYPE_DOWNLOAD_FILE_RESPOND):
  *   caData格式: "%s %lld %lld" (文件名 文件总大小 已跳过大小)
  *   如果已跳过大小>0，表示从该偏移量开始传输
+ * 上传/下载数据帧:
+ *   ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST / ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND
+ *   caMsg: 文件数据块
+ *   uiMsgLen: 文件数据块长度
  */
 #endif // PROTOCOL_H

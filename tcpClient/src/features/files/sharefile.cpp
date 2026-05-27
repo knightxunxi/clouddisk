@@ -1,5 +1,6 @@
 #include "sharefile.h"
 #include <QDebug>
+#include "pdufieldcodec.h"
 #include "tcpclient.h"
 #include "opewidget.h"
 #include <QLabel>
@@ -137,20 +138,26 @@ void ShareFile::shareConfirm()
             shareNum++;
         }
     }
-    PDU *pdu = mkPDU(32 * shareNum + strSharePath.size() + 1);
+    const QByteArray sharePathBytes = strSharePath.toUtf8();
+    PDU *pdu = mkPDU(32 * shareNum + sharePathBytes.size() + 1);
     pdu->uiMsgType = ENUM_MSG_TYPE_SHARE_FILE_REQUEST;
-    sprintf(pdu->caData, "%s %d", strName.toStdString().c_str(), shareNum);
+    PduFieldCodec::writeShareRequestData(pdu->caData, strName, shareNum);
     int j = 0;
     for(int i = 0; i < cbList.size(); i++)
     {
         if(cbList[i]->isChecked())
         {
-             qDebug() << "选中分享的好友：" << cbList[i]->text().split('\t')[0].toStdString().c_str();
-             memcpy((char*)(pdu->caMsg) + j * 32, cbList[i]->text().split('\t')[0].toStdString().c_str(), cbList[i]->text().split('\t')[0].size());
+             const QString friendName = cbList[i]->text().split('\t')[0];
+             qDebug() << "选中分享的好友：" << friendName;
+             PduFieldCodec::writeFixedString((char*)(pdu->caMsg) + j * 32,
+                                             32,
+                                             friendName);
              j++;
         }
     }
-    memcpy((char*)(pdu->caMsg) + shareNum * 32, strSharePath.toStdString().c_str(), strSharePath.size());
+    memcpy((char*)(pdu->caMsg) + shareNum * 32,
+           sharePathBytes.constData(),
+           sharePathBytes.size());
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;

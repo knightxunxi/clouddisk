@@ -5,6 +5,19 @@
 #include <mytcpserver.h>
 #include <cstring>
 
+namespace {
+
+void sendUploadResponse(QTcpSocket *socket, const char *message)
+{
+    PDU *respdu = mkPDU(0);
+    respdu->uiMsgType = ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND;
+    strcpy(respdu->caData, message);
+    socket->write((char*)respdu, respdu->uiPDULen);
+    free(respdu); respdu = nullptr;
+}
+
+} // namespace
+
 // ═══════════════════════════════════════════════
 //  MyTcpSocket 实现
 // ═══════════════════════════════════════════════
@@ -13,7 +26,6 @@ MyTcpSocket::MyTcpSocket()
 {
     connect(this, SIGNAL(readyRead()),    this, SLOT(recvMsg()));
     connect(this, SIGNAL(disconnected()), this, SLOT(clientOffline()));
-    m_bUpload    = false;
     m_fileWorker = nullptr;
 }
 
@@ -46,7 +58,13 @@ void MyTcpSocket::startFileWorker(FileWorker *worker)
 // 收到子线程发来的数据块 → 写入 socket（主线程，非阻塞）
 void MyTcpSocket::onFileDataBlock(const QByteArray &data)
 {
-    write(data);
+    PDU *pdu = mkPDU(static_cast<unit>(data.size()));
+    pdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND;
+    if (!data.isEmpty()) {
+        memcpy(pdu->caMsg, data.constData(), data.size());
+    }
+    write((char*)pdu, pdu->uiPDULen);
+    free(pdu); pdu = nullptr;
 }
 
 // 工作线程结束通知
@@ -62,46 +80,24 @@ void MyTcpSocket::handleUploadData(const QByteArray &buffer)
         return;
     }
 
-    PDU *respdu = mkPDU(0);
-    respdu->uiMsgType = ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND;
-    qint64 bytesRead = buffer.size();
-    m_file.write(buffer);
-    m_iReceived += bytesRead;
-
-    if (m_iTotal == m_iReceived) {
-        m_file.close();
-        m_bUpload = false;
-        strcpy(respdu->caData, UPLOAD_FILE_OK);
-        write((char*)respdu, respdu->uiPDULen);
-    } else if (m_iTotal < m_iReceived) {
-        m_file.close();
-        m_bUpload = false;
-        strcpy(respdu->caData, UPLOAD_FILE_FAILED);
-        write((char*)respdu, respdu->uiPDULen);
+    const UploadSession::WriteResult result = m_uploadSession.writeBlock(buffer);
+    if (result == UploadSession::WriteComplete) {
+        sendUploadResponse(this, UPLOAD_FILE_OK);
+        return;
     }
-    free(respdu); respdu = nullptr;
+    if (result == UploadSession::WriteFailed) {
+        sendUploadResponse(this, UPLOAD_FILE_FAILED);
+    }
 }
 
 void MyTcpSocket::recvMsg()
 {
-    if (!m_bUpload)
+    m_packetCodec.append(readAll());
+    PDU *pdu = nullptr;
+    while ((pdu = m_packetCodec.takePacket()) != nullptr)
     {
-        m_packetCodec.append(readAll());
-        PDU *pdu = nullptr;
-        while (!m_bUpload && (pdu = m_packetCodec.takePacket()) != nullptr)
-        {
-            handlePdu(pdu);
-            free(pdu); pdu = nullptr;
-        }
-
-        if (m_bUpload) {
-            handleUploadData(m_packetCodec.takeBufferedData());
-        }
-    }
-    else
-    {
-        // 上传数据接收：文件内容仍按裸流模式处理。
-        handleUploadData(readAll());
+        handlePdu(pdu);
+        free(pdu); pdu = nullptr;
     }
 }
 void MyTcpSocket::clientOffline()
@@ -112,5 +108,6 @@ void MyTcpSocket::clientOffline()
         m_fileWorker->cancel();
         m_fileWorker->wait(2000);
     }
+    m_uploadSession.reset();
     emit offline(this);
 }

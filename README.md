@@ -49,6 +49,8 @@ TinyDisk-main/
 │       ├── protocol.cpp
 │       ├── packetcodec.h
 │       ├── packetcodec.cpp
+│       ├── pdufieldcodec.h
+│       ├── pdufieldcodec.cpp
 │       └── protocol.pri
 │
 ├── tcpClient/                 # 客户端项目
@@ -61,8 +63,10 @@ TinyDisk-main/
 │   │   └── icons/
 │   └── src/
 │       ├── main.cpp
+│       ├── handlers/          # 客户端响应分发与处理
 │       ├── network/           # TCP 客户端与登录窗口
 │       ├── ui/                # 主界面容器
+│       ├── transfer/          # 下载传输状态
 │       └── features/
 │           ├── files/         # 文件管理与分享
 │           └── friends/       # 好友、在线用户、私聊
@@ -78,6 +82,7 @@ TinyDisk-main/
         ├── handlers/          # 服务端请求分发与业务处理
         ├── database/          # SQLite 访问层
         ├── storage/           # 服务端文件系统操作
+        ├── transfer/          # 上传传输状态
         ├── workers/           # 文件传输、复制、删除等后台任务
         ├── network/           # TCP Server 与客户端 Socket
         └── ui/                # 服务端管理界面
@@ -172,8 +177,11 @@ mingw32-make -j4
 
 - 客户端和服务端通过 `common/protocol/protocol.pri` 共享同一份协议代码。
 - 普通 PDU 收包通过 `common/protocol/PacketCodec` 缓冲解析，避免直接假定一次 socket 读取就是完整包。
+- PDU 定长字段和传输字段通过 `common/protocol/PduFieldCodec` 统一解析和写入。
+- 上传/下载文件数据也已封装为 PDU 数据帧，客户端和服务端不再在同一 TCP 连接中切换裸文件流模式。
 - 服务端 `MyTcpSocket::recvMsg()` 只负责收包循环，具体注册/好友/文件请求已拆到 `tcpServer/src/handlers`。
 - 服务端文件路径解析、目录列表、删除、重命名、移动等文件系统操作已集中到 `tcpServer/src/storage/StorageService`。
+- 上传/下载进度状态已分别收敛到服务端 `UploadSession` 和客户端 `DownloadSession`。
+- 客户端响应处理已拆到 `tcpClient/src/handlers/responsehandler.cpp`，`tcpClient::recvMsg()` 只保留收包循环。
 - 服务端后台文件任务已拆到 `tcpServer/src/workers/FileWorker`，`MyTcpSocket` 只保留线程启动和信号连接。
-- 文件传输目前仍基于同一条 TCP 连接在 PDU 消息和裸文件流之间切换。
-- 后续如需继续提升稳定性，建议将文件流也封装成明确长度的数据帧，并继续拆分上传/下载传输状态。
+- 后续建议优先做完整功能回归和协议/路径安全测试补充。

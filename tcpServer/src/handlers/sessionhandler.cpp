@@ -1,5 +1,6 @@
 #include "mytcpsocket.h"
 #include "opedb.h"
+#include "pdufieldcodec.h"
 #include "storageservice.h"
 
 #include <QDir>
@@ -8,25 +9,25 @@
 
 void MyTcpSocket::handleRegistRequest(PDU *pdu)
 {
-    char caName[32] = {'\0'};
-    char caPwd[32]  = {'\0'};
-    strncpy(caName, pdu->caData,      sizeof(caName) - 1);
-    strncpy(caPwd,  pdu->caData + 32, sizeof(caPwd) - 1);
+    const PduFieldCodec::FixedPair account = PduFieldCodec::fixedPair(pdu->caData);
 
     PDU *respdu = mkPDU(0);
     respdu->uiMsgType = ENUM_MSG_TYPE_REGIST_RESPOND;
-    if (!StorageService::isSafeName(QString::fromUtf8(caName))) {
+    if (!StorageService::isSafeName(account.first)) {
         strcpy(respdu->caData, REGIST_FAILED);
         write((char*)respdu, respdu->uiPDULen);
         free(respdu); respdu = nullptr;
         return;
     }
 
-    bool ret = OpeDB::getInstance().handleRegist(caName, caPwd);
+    const QByteArray nameBytes = account.first.toUtf8();
+    const QByteArray pwdBytes = account.second.toUtf8();
+    bool ret = OpeDB::getInstance().handleRegist(nameBytes.constData(),
+                                                 pwdBytes.constData());
     if (ret) {
         strcpy(respdu->caData, REGIST_OK);
         QDir dir;
-        dir.mkpath(StorageService::userRootPath(QString::fromUtf8(caName)));
+        dir.mkpath(StorageService::userRootPath(account.first));
         emit userListChanged();
     } else {
         strcpy(respdu->caData, REGIST_FAILED);
@@ -38,24 +39,24 @@ void MyTcpSocket::handleRegistRequest(PDU *pdu)
 
 void MyTcpSocket::handleLoginRequest(PDU *pdu)
 {
-    char caName[32] = {'\0'};
-    char caPwd[32]  = {'\0'};
-    strncpy(caName, pdu->caData,      sizeof(caName) - 1);
-    strncpy(caPwd,  pdu->caData + 32, sizeof(caPwd) - 1);
+    const PduFieldCodec::FixedPair account = PduFieldCodec::fixedPair(pdu->caData);
 
     PDU *respdu = mkPDU(0);
     respdu->uiMsgType = ENUM_MSG_TYPE_LOGIN_RESPOND;
-    if (!StorageService::isSafeName(QString::fromUtf8(caName))) {
+    if (!StorageService::isSafeName(account.first)) {
         strcpy(respdu->caData, LOGIN_FAILED);
         write((char*)respdu, respdu->uiPDULen);
         free(respdu); respdu = nullptr;
         return;
     }
 
-    bool ret = OpeDB::getInstance().handleLogin(caName, caPwd);
+    const QByteArray nameBytes = account.first.toUtf8();
+    const QByteArray pwdBytes = account.second.toUtf8();
+    bool ret = OpeDB::getInstance().handleLogin(nameBytes.constData(),
+                                                pwdBytes.constData());
     if (ret) {
         strcpy(respdu->caData, LOGIN_OK);
-        m_strName = caName;
+        m_strName = account.first;
         emit userListChanged();
     } else {
         strcpy(respdu->caData, LOGIN_FAILED);
@@ -74,8 +75,9 @@ void MyTcpSocket::handleAllOnlineRequest(PDU *pdu)
     PDU *respdu = mkPDU(uiMsgLenLocal);
     respdu->uiMsgType = ENUM_MSG_TYPE_ALL_ONLINE_RESPOND;
     for (int i = 0; i < ret.size(); i++) {
-        memcpy((char*)(respdu->caMsg) + i * 32,
-               ret.at(i).toStdString().c_str(), ret.at(i).size());
+        PduFieldCodec::writeFixedString((char*)(respdu->caMsg) + i * 32,
+                                        32,
+                                        ret.at(i));
     }
 
     write((char*)respdu, respdu->uiPDULen);
@@ -84,7 +86,9 @@ void MyTcpSocket::handleAllOnlineRequest(PDU *pdu)
 
 void MyTcpSocket::handleSearchUserRequest(PDU *pdu)
 {
-    int ret = OpeDB::getInstance().handleSearchUser(pdu->caData);
+    const QString searchName = PduFieldCodec::fixedString(pdu->caData, 32);
+    const QByteArray searchNameBytes = searchName.toUtf8();
+    int ret = OpeDB::getInstance().handleSearchUser(searchNameBytes.constData());
     PDU *respdu = mkPDU(0);
     respdu->uiMsgType = ENUM_MSG_TYPE_SEARCH_USER_RESPOND;
     if      (-1 == ret) strcpy(respdu->caData, SEARCH_USER_NO);

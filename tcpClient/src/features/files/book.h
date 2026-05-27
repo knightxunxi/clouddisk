@@ -6,10 +6,11 @@
 #include <QListWidget>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QProgressBar>
+#include <QLabel>
 #include <QVBoxLayout> // 垂直布局
 #include <QHBoxLayout> // 水平布局
 #include "protocol.h"
-#include <QTimer>
 #include <QThread>
 #include <QFile>
 
@@ -42,7 +43,7 @@ protected:
                 return;
             }
         }
-        const int bufferSize = 4096;
+        const int bufferSize = 64 * 1024;
         char buffer[bufferSize];
         qint64 bytesRead;
         while (!m_canceled && (bytesRead = file.read(buffer, bufferSize)) > 0) {
@@ -69,14 +70,18 @@ public:
     void clearEnterDir();
     QString enterDir();
 
-    void setDownLoadStatus(bool status);
-
-    qint64 m_iTotal = 0;
-    qint64 m_iReceived = 0;
-
-    bool getDownloadStatus();
     QString getFileSavePath();
     QString getShareFileName();
+    QString getDownloadRemotePath() const;
+
+    void setTransferProgress(qint64 currentBytes, qint64 totalBytes, const QString &statusText);
+    void setTransferStatus(const QString &statusText);
+    void resetTransferProgress(const QString &statusText = QString());
+    void setDownloadActive(bool active);
+
+    QString resumePathForRemote(const QString &remotePath) const;
+    void saveDownloadResume(const QString &remotePath, const QString &localPath);
+    void clearDownloadResume(const QString &remotePath);
 
 signals:
 
@@ -103,6 +108,7 @@ private slots:
     void onUploadProgress(qint64 bytesRead);
     void onUploadFinished();
     void onUploadError(const QString &msg);
+    void pauseDownload();
 
 private:
     QListWidget *m_pFileListWidget;         // 文件列表
@@ -117,20 +123,22 @@ private:
     QPushButton *m_pShareFilePB;            // 分享文件
     QPushButton *m_pMoveFilePB;             //移动文件
     QPushButton *m_pSelectMoveToDirPB;      //移动文件到其他文件夹
+    QPushButton *m_pPauseDownloadPB;        //暂停下载
+    QProgressBar *m_pTransferProgressBar;   //传输进度
+    QLabel *m_pTransferStatusLabel;         //传输状态
 
     QString m_strEnterDir;
     QString m_strUploadFilePath;
     QString m_strFileSavePath;
+    QString m_strDownloadRemotePath;
     QString m_strShareFileName;
     QString m_strMoveFileName;
     QString m_strMoveFilePath;
     QString m_strDestDirPath;
 
-    QTimer *m_pTimer;
-    bool m_bDownload;
-    qint64 m_uploadedSize;      // 已上传大小（用于断点续传）
     qint64 m_uploadFileOffset;  // 文件读取偏移量
-    qint64 m_downloadedSize;    // 已下载大小（用于断点续传）
+    qint64 m_uploadTotalBytes;
+    qint64 m_uploadSentBytes;
 
     UploadThread *m_uploadThread;
 };

@@ -1,4 +1,5 @@
 #include "friend.h"
+#include "pdufieldcodec.h"
 #include "protocol.h"
 #include "tcpclient.h"
 #include <QInputDialog>
@@ -97,18 +98,16 @@ void Friend::updateFriendList(PDU *pdu)
     {
         return;
     }
-    char caName[32] = {'\0'};
-    char onlineStatus[4] = {'\0'};
     unit strSize = pdu->uiMsgLen / 36;
 
     m_pFriendListWidget->clear();
     for(unit i = 0; i < strSize ; i++)
     {
-        memcpy(caName, (char*)(pdu->caMsg) + i * 36, 32);
-        memcpy(onlineStatus, (char*)(pdu->caMsg) + 32 + i * 36, 4);
+        const QString caName = PduFieldCodec::fixedString((char*)(pdu->caMsg) + i * 36, 32);
+        const QString onlineStatus = PduFieldCodec::fixedString((char*)(pdu->caMsg) + 32 + i * 36, 4);
         qDebug() << "客户端好友" << caName << " " << onlineStatus;
         m_pFriendListWidget->addItem(QString("%1\t%2").arg(caName)
-                                     .arg(strcmp(onlineStatus, "1") == 0?"在线":"离线"));
+                                     .arg(onlineStatus == "1" ? "在线" : "离线"));
     }
     return;
 }
@@ -119,7 +118,9 @@ void Friend::updateGroupMsg(PDU *pdu)
     {
         return;
     }
-    QString strMsg = QString("%1 says: %2").arg(pdu->caData).arg((char*)pdu->caMsg);
+    QString strMsg = QString("%1 says: %2")
+            .arg(PduFieldCodec::fixedString(pdu->caData, 32))
+            .arg(PduFieldCodec::messageString(pdu));
     m_pShowMsgTE->append(strMsg);
 }
 
@@ -148,7 +149,7 @@ void Friend::searchUser()
     m_strSearchName = QInputDialog::getText(this, "搜索", "用户名：");
     if(!m_strSearchName.isEmpty()){
         PDU *pdu = mkPDU(0);
-        memcpy(pdu->caData, m_strSearchName.toStdString().c_str(), m_strSearchName.size());
+        PduFieldCodec::writeFixedString(pdu->caData, 32, m_strSearchName);
         pdu->uiMsgType = ENUM_MSG_TYPE_SEARCH_USER_REQUEST;
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
@@ -161,7 +162,7 @@ void Friend::flushFriend()
     QString strName = tcpClient::getInstance().loginName();
     PDU *pdu = mkPDU(0);
     pdu->uiMsgType = ENUM_MSG_TYPE_FLUSH_FRIEND_REQUEST;
-    memcpy(pdu->caData, strName.toStdString().c_str(), strName.size());
+    PduFieldCodec::writeFixedString(pdu->caData, 32, strName);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;
@@ -179,8 +180,7 @@ void Friend::deleteFriend()
     QString sourceName = tcpClient::getInstance().loginName(); // 登录用户用户名
     PDU *pdu = mkPDU(0);
     pdu->uiMsgType = ENUM_MSG_TYPE_DELETE_FRIEND_REQUEST;
-    memcpy(pdu->caData, sourceName.toStdString().c_str(), 32);
-    memcpy(pdu->caData + 32, deleteName.toStdString().c_str(), 32);
+    PduFieldCodec::writeFixedPair(pdu->caData, sourceName, deleteName);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;
@@ -211,11 +211,11 @@ void Friend::groupChat()
         QMessageBox::warning(this, "好友群发", "信息不能为空");
         return;
     }
-    PDU *pdu = mkPDU(strMsg.size() + 1);
+    PDU *pdu = mkPDU(strMsg.toUtf8().size() + 1);
     pdu->uiMsgType = ENUM_MSG_TYPE_GROUP_CHAT_REQUEST;
     QString sourceName = tcpClient::getInstance().loginName();
-    strncpy(pdu->caData ,sourceName.toStdString().c_str(), sourceName.size());  //群发的人
-    strncpy((char*)pdu->caMsg, strMsg.toStdString().c_str(), strMsg.size());    //群发的信息
+    PduFieldCodec::writeFixedString(pdu->caData, 32, sourceName);
+    PduFieldCodec::writeMessage(pdu, strMsg);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;

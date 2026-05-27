@@ -1,5 +1,6 @@
 #include "book.h"
 #include "tcpclient.h"
+#include "pdufieldcodec.h"
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -11,12 +12,8 @@
 Book::Book(QWidget *parent) : QWidget(parent)
 {
     m_strEnterDir.clear();
-    m_bDownload = false;
-    m_uploadedSize = 0;
     m_uploadFileOffset = 0;
-    m_downloadedSize = 0;
     m_uploadThread = nullptr;
-    m_pTimer = new QTimer;
 
     m_pFileListWidget = new QListWidget;                  // 文件列表
 
@@ -97,7 +94,6 @@ Book::Book(QWidget *parent) : QWidget(parent)
     connect(m_pFileListWidget ,SIGNAL(doubleClicked(QModelIndex)), this, SLOT(enterDir(QModelIndex)));
     connect(m_pReturnPB, SIGNAL(clicked(bool)), this, SLOT(returnPreContent()));
     connect(m_pUploadFilePB, SIGNAL(clicked(bool)), this, SLOT(uploadFile()));
-    connect(m_pTimer, SIGNAL(timeout()), this, SLOT(uploadFileData()));
     connect(m_pDeleteFilePB, SIGNAL(clicked(bool)), this, SLOT(deleteFile()));
     connect(m_pDownLoadFilePB, SIGNAL(clicked(bool)), this, SLOT(downloadFile()));
     connect(m_pShareFilePB, SIGNAL(clicked(bool)), this, SLOT(shareFile()));
@@ -144,16 +140,6 @@ QString Book::enterDir()
     return m_strEnterDir;
 }
 
-void Book::setDownLoadStatus(bool status)
-{
-    m_bDownload = status;
-}
-
-bool Book:: getDownloadStatus()
-{
-    return m_bDownload;
-}
-
 QString Book::getFileSavePath()
 {
     return m_strFileSavePath;
@@ -180,11 +166,10 @@ void Book::createDir()
     }
     QString strLoginName = tcpClient::getInstance().loginName();
     QString strCurPath = tcpClient::getInstance().currentPath();
-    PDU *pdu = mkPDU(strCurPath.size() + 1);
+    PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
     pdu->uiMsgType = ENUM_MSG_TYPE_CREATE_DIR_REQUEST;
-    strncpy(pdu->caData, strLoginName.toStdString().c_str(), 32);
-    strncpy(pdu->caData + 32, newDirName.toStdString().c_str(), 32);
-    memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+    PduFieldCodec::writeFixedPair(pdu->caData, strLoginName, newDirName);
+    PduFieldCodec::writeMessage(pdu, strCurPath);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;
@@ -195,9 +180,9 @@ void Book::flushFile()
     clearEnterDir();
     QString strCurPath = tcpClient::getInstance().currentPath();
     qDebug() << "book flush路径" << strCurPath;
-    PDU *pdu = mkPDU(strCurPath.size() + 1);
+    PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
     pdu->uiMsgType = ENUM_MSG_TYPE_FLUSH_FILE_REQUEST;
-    strncpy((char*)(pdu->caMsg), strCurPath.toStdString().c_str(), strCurPath.size());
+    PduFieldCodec::writeMessage(pdu, strCurPath);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;
@@ -215,10 +200,10 @@ void Book::deleteDir()
     else
     {
         QString deleteName = pItem->text();
-        PDU *pdu = mkPDU(strCurPath.size() + 1);
+        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_DELETE_DIR_REQUEST;
-        strncpy((char*)(pdu->caData), deleteName.toStdString().c_str(), deleteName.size());
-        memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+        PduFieldCodec::writeFixedString(pdu->caData, 32, deleteName);
+        PduFieldCodec::writeMessage(pdu, strCurPath);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
@@ -242,11 +227,10 @@ void Book::renameFile()
         {
             QMessageBox::warning(this, "重命名文件", "文件名不能为空");
         }
-        PDU *pdu = mkPDU(strCurPath.size() + 1);
+        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_RENAME_FILE_REQUEST;
-        strncpy((char*)(pdu->caData), oldFileName.toStdString().c_str(), oldFileName.size());
-        strncpy((char*)(pdu->caData + 32), newFileName.toStdString().c_str(), newFileName.size());
-        memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+        PduFieldCodec::writeFixedPair(pdu->caData, oldFileName, newFileName);
+        PduFieldCodec::writeMessage(pdu, strCurPath);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
@@ -260,10 +244,10 @@ void Book::enterDir(const QModelIndex &index)
     qDebug() << selectDirName;
     m_strEnterDir = selectDirName;
     QString strCurPath = tcpClient::getInstance().currentPath();
-    PDU *pdu = mkPDU(strCurPath.size() + 1);
+    PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
     pdu->uiMsgType = ENUM_MSG_TYPE_ENTER_DIR_REQUEST;
-    strncpy(pdu->caData, selectDirName.toStdString().c_str(), selectDirName.size());
-    memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+    PduFieldCodec::writeFixedString(pdu->caData, 32, selectDirName);
+    PduFieldCodec::writeMessage(pdu, strCurPath);
     tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
     free(pdu);
     pdu = NULL;
@@ -307,30 +291,27 @@ void Book::uploadFile()
 
         QFile file(m_strUploadFilePath );
         qint64 uploadFileSize = file.size();
-        // 暂时假设已上传大小为0（从头开始）
         qint64 uploadedSize = 0;
-        // 可以在此处检查是否有断点续传记录，暂时简化
-        m_uploadedSize = uploadedSize;
         m_uploadFileOffset = uploadedSize; // 从该偏移量开始读取文件
         QString strCurPath = tcpClient::getInstance().currentPath();
-        PDU *pdu = mkPDU(strCurPath.size() + 1);
+        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_UPLOAD_FILE_REQUEST;
-        memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
-        // 格式：文件名 文件总大小 已上传大小
-        sprintf(pdu->caData, "%s %lld %lld", newFileName.toStdString().c_str(), uploadFileSize, uploadedSize);
+        PduFieldCodec::writeMessage(pdu, strCurPath);
+        PduFieldCodec::writeUploadFileRequest(pdu->caData,
+                                              newFileName,
+                                              uploadFileSize,
+                                              uploadedSize);
         qDebug() << "上传请求：" << newFileName << "总大小：" << uploadFileSize << "已上传：" << uploadedSize;
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
 
-        m_pTimer->start(1000);
     }
 
 }
 
 void Book::uploadFileData()
 {
-    m_pTimer->stop();
     // 如果已有上传线程在运行，先取消
     if (m_uploadThread) {
         m_uploadThread->cancel();
@@ -363,10 +344,10 @@ void Book::deleteFile()
     else
     {
         QString deleteName = pItem->text();
-        PDU *pdu = mkPDU(strCurPath.size() + 1);
+        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_DELETE_FILE_REQUEST;
-        strncpy((char*)(pdu->caData), deleteName.toStdString().c_str(), deleteName.size());
-        memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+        PduFieldCodec::writeFixedString(pdu->caData, 32, deleteName);
+        PduFieldCodec::writeMessage(pdu, strCurPath);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
@@ -404,12 +385,12 @@ void Book::downloadFile()
             downloadedSize = fileInfo.size();
             qDebug() << "本地已存在部分文件，大小：" << downloadedSize;
         }
-        m_downloadedSize = downloadedSize;
-        PDU *pdu = mkPDU(strCurPath.size() + 1);
+        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_REQUEST;
-        // 格式：文件名 已下载大小
-        sprintf(pdu->caData, "%s %lld", downloadName.toStdString().c_str(), downloadedSize);
-        memcpy(pdu->caMsg, strCurPath.toStdString().c_str(), strCurPath.size());
+        PduFieldCodec::writeDownloadFileRequest(pdu->caData,
+                                                downloadName,
+                                                downloadedSize);
+        PduFieldCodec::writeMessage(pdu, strCurPath);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
@@ -472,13 +453,18 @@ void Book::selectDestDir()
         QString strCurPath = tcpClient::getInstance().currentPath();
         m_strDestDirPath = strCurPath + '/' + destDirName;
 
-        int srcLen = m_strMoveFilePath.size();
-        int destLen = m_strDestDirPath.size();
+        const QByteArray srcPathBytes = m_strMoveFilePath.toUtf8();
+        const QByteArray destPathBytes = m_strDestDirPath.toUtf8();
+        int srcLen = srcPathBytes.size();
+        int destLen = destPathBytes.size();
         PDU *pdu = mkPDU(srcLen + destLen + 2);
         pdu->uiMsgType = ENUM_MSG_TYPE_MOVE_FILE_REQUEST;
-        sprintf(pdu->caData, "%d %d %s", srcLen, destLen, m_strMoveFileName.toStdString().c_str());
-        memcpy(pdu->caMsg, m_strMoveFilePath.toStdString().c_str(), srcLen);
-        memcpy((char*)(pdu->caMsg) + (srcLen + 1), m_strDestDirPath.toStdString().c_str(), destLen);
+        PduFieldCodec::writeMoveFileRequestData(pdu->caData,
+                                                srcLen,
+                                                destLen,
+                                                m_strMoveFileName);
+        memcpy(pdu->caMsg, srcPathBytes.constData(), srcLen);
+        memcpy((char*)(pdu->caMsg) + (srcLen + 1), destPathBytes.constData(), destLen);
         tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
         free(pdu);
         pdu = NULL;
@@ -488,8 +474,16 @@ void Book::selectDestDir()
 
 void Book::onUploadDataBlock(const QByteArray &data)
 {
-    // 将数据块写入套接字
-    tcpClient::getInstance().gettcpSocket().write(data);
+    if (data.isEmpty()) {
+        return;
+    }
+
+    PDU *pdu = mkPDU(static_cast<unit>(data.size()));
+    pdu->uiMsgType = ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST;
+    memcpy(pdu->caMsg, data.constData(), data.size());
+    tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
+    free(pdu);
+    pdu = NULL;
 }
 
 void Book::onUploadProgress(qint64 bytesRead)

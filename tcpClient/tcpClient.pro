@@ -8,7 +8,9 @@ include(../common/protocol/protocol.pri)
 
 INCLUDEPATH += \
     $$PWD/src/network \
+    $$PWD/src/handlers \
     $$PWD/src/ui \
+    $$PWD/src/transfer \
     $$PWD/src/features/friends \
     $$PWD/src/features/files
 
@@ -18,7 +20,9 @@ INCLUDEPATH += \
 
 SOURCES += \
     src/main.cpp \
+    src/handlers/responsehandler.cpp \
     src/network/tcpclient.cpp \
+    src/transfer/downloadsession.cpp \
     src/ui/opewidget.cpp \
     src/features/friends/friend.cpp \
     src/features/friends/online.cpp \
@@ -28,6 +32,7 @@ SOURCES += \
 
 HEADERS += \
     src/network/tcpclient.h \
+    src/transfer/downloadsession.h \
     src/ui/opewidget.h \
     src/features/friends/friend.h \
     src/features/friends/online.h \

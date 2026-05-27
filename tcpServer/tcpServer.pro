@@ -11,6 +11,7 @@ INCLUDEPATH += \
     $$PWD/src/network \
     $$PWD/src/database \
     $$PWD/src/storage \
+    $$PWD/src/transfer \
     $$PWD/src/workers \
     $$PWD/src/ui
 
@@ -35,6 +36,7 @@ SOURCES += \
     src/network/mytcpsocket.cpp \
     src/database/opedb.cpp \
     src/storage/storageservice.cpp \
+    src/transfer/uploadsession.cpp \
     src/workers/fileworker.cpp \
     src/ui/tcpserver.cpp
 
@@ -43,6 +45,7 @@ HEADERS += \
     src/network/mytcpsocket.h \
     src/database/opedb.h \
     src/storage/storageservice.h \
+    src/transfer/uploadsession.h \
     src/workers/fileworker.h \
     src/ui/tcpserver.h
 

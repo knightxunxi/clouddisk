@@ -111,13 +111,52 @@ TinyDisk-main/
 - 分享发送方会校验被分享路径确实属于发送者；接受分享时，目标路径使用当前 socket 登录用户，避免客户端伪造接收者目录。
 - 注册时新增用户名合法性检查，并通过 `StorageService::userRootPath()` 创建用户根目录。
 
+## 第七阶段：文件传输协议帧化
+
+上传和下载原先在同一条 TCP 连接中混用普通 PDU 与裸文件字节流：上传请求后客户端直接写文件字节，下载响应后服务端直接写文件字节。这要求双方在特定时刻切换收包模式，容易受半包、粘包和状态不同步影响。本阶段将文件数据也改为 PDU：
+
+- 新增 `ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST`，客户端上传线程把每个文件块放入 `caMsg` 发送。
+- 新增 `ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND`，服务端 `FileWorker` 把下载文件块封装为 PDU 返回。
+- 客户端 `tcpClient::recvMsg()` 不再进入裸下载模式，始终通过 `PacketCodec` 解析 PDU。
+- 服务端 `MyTcpSocket::recvMsg()` 不再进入裸上传模式，始终通过 `PacketCodec` 解析 PDU。
+- 上传请求成功打开目标文件后，服务端先返回 `UPLOAD_FILE_RESUME`，客户端收到后才启动上传线程。
+- 上传完成仍通过 `ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND` 返回 `UPLOAD_FILE_OK` 或 `UPLOAD_FILE_FAILED`。
+
+## 第八阶段：传输状态对象
+
+文件传输帧化后，上传/下载仍有状态字段分散在 socket、UI 和线程回调中。本阶段将状态收拢：
+
+- 服务端新增 `tcpServer/src/transfer/UploadSession`，封装上传目标文件、总大小、已接收大小、写入和完成判断。
+- `MyTcpSocket` 不再直接持有上传用 `QFile`、`m_iTotal`、`m_iReceived`、`m_bUpload`，只保留上传会话对象。
+- 客户端新增 `tcpClient/src/transfer/DownloadSession`，封装下载保存路径、总大小、已写入大小和完成判断。
+- 客户端下载进度状态从 `Book` 移入 `tcpClient` 网络层，`Book` 只保留文件选择与操作入口。
+
+## 第九阶段：PDU 字段解析工具
+
+客户端和服务端原先散落大量定长字段复制和字符串格式解析，容易出现截断、未补 `\0` 和格式不一致问题。本阶段新增 `common/protocol/PduFieldCodec`：
+
+- 统一解析和写入 32 字节定长用户名、密码、文件名字段。
+- 统一解析和写入上传请求、下载请求/响应、分享请求、移动请求的 `caData` 字段。
+- 统一写入 PDU 消息体，减少手写 `strncpy`、`sscanf`、`sprintf` 和定长 `memcpy`。
+- 客户端文件、好友、在线用户、私聊和服务端 session/friend/file handler 已接入该工具。
+
+## 第十阶段：客户端响应 handler 拆分
+
+客户端 `tcpClient::recvMsg()` 原先包含大型响应 switch，登录、好友、文件、分享和传输响应全部混在一个函数中。本阶段将响应处理拆出：
+
+- `recvMsg()` 只负责读取 socket、交给 `PacketCodec` 解析，并调用响应分发函数。
+- 新增 `tcpClient/src/handlers/responsehandler.cpp`。
+- 按 session、friend、file、share 四类私有成员函数处理响应。
+- 下载响应和下载数据帧处理迁移到 file 响应 handler 内，和 `DownloadSession` 配合。
+
 ## 后续建议
 
-共享协议和普通 PDU codec 完成后，下一阶段可以继续拆分网络与业务逻辑：
+当前主要结构性优化已完成。后续建议以功能稳定、测试覆盖和体验完善为主：
 
-- 将文件流也封装为明确长度的数据帧，逐步移除“PDU 模式/裸流模式”切换。
-- 为 `StorageService` 增加路径越界校验，避免客户端传入非预期目录。
-- 将上传/下载状态抽成独立传输会话对象，减少 `MyTcpSocket` 中的传输状态字段。
+- 做一轮完整人工回归，重点验证上传、下载、分享、移动和异常路径。
+- 为协议解析和路径安全补充轻量单元测试或独立测试程序。
+- 继续完善上传/下载进度 UI、取消操作和错误提示。
+- 再考虑数据库层、好友逻辑和客户端文件操作请求的进一步服务化拆分。
 
 ## 待优化清单
 
@@ -133,21 +172,25 @@ TinyDisk-main/
    - 将上传/下载文件流封装为明确长度的数据帧。
    - 逐步移除同一 TCP 连接中“PDU 模式/裸流模式”的切换。
    - 优先级：高，涉及半包、粘包和大文件稳定性。
+   - 状态：已完成。见“第七阶段：文件传输协议帧化”。
 
 3. 上传/下载传输状态对象
    - 新增类似 `TransferSession` 的对象保存当前文件、总大小、已传大小、方向和状态。
    - 减少 `MyTcpSocket` 中的 `m_file`、`m_iTotal`、`m_iReceived`、`m_bUpload` 等传输字段。
    - 优先级：中高，便于后续支持多任务或更清晰的断点续传。
+   - 状态：已完成。见“第八阶段：传输状态对象”。
 
 4. PDU 字段解析工具
    - 抽出用户名、密码、文件名、路径、长度字段等解析逻辑。
    - 减少散落的 `strncpy`、`sscanf`、`memcpy`。
    - 优先级：中，主要降低重复代码和字符串截断风险。
+   - 状态：已完成。见“第九阶段：PDU 字段解析工具”。
 
 5. 客户端响应 handler 拆分
    - 将 `tcpClient::recvMsg()` 中的大型响应 switch 按登录、好友、文件、分享等功能拆分。
    - 对齐服务端已经拆出的 `handlers` 结构。
    - 优先级：中，主要改善客户端可维护性。
+   - 状态：已完成。见“第十阶段：客户端响应 handler 拆分”。
 
 ## 功能验证与 bug 记录
 

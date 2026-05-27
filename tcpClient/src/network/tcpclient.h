@@ -8,6 +8,7 @@
 #include <QQueue>
 #include <QMutex>
 #include <QWaitCondition>
+#include "downloadsession.h"
 #include "protocol.h"
 #include "packetcodec.h"
 #include "opewidget.h"
@@ -80,6 +81,11 @@ private slots:
     void onDownloadFinished(bool success, const QString &msg);
 
 private:
+    void dispatchResponse(PDU *pdu);
+    void handleSessionResponse(PDU *pdu);
+    void handleFriendResponse(PDU *pdu);
+    void handleFileResponse(PDU *pdu);
+    void handleShareResponse(PDU *pdu);
     void handleDownloadData(const QByteArray &buffer);
 
     Ui::tcpClient *ui;
@@ -88,6 +94,7 @@ private:
 
     QTcpSocket m_tcpSocket;
     PacketCodec m_packetCodec;
+    DownloadSession m_downloadSession;
     QString m_strLoginName;
     QString m_strCurPath;
 
