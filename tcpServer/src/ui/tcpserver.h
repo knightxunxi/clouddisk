@@ -4,6 +4,11 @@
 #include <QWidget>
 #include <QListWidgetItem>
 #include <QTreeWidgetItem>
+#include <QDateTime>
+#include <QVector>
+
+class QComboBox;
+class QLineEdit;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -32,16 +37,33 @@ private slots:
     void onOfflineUserClicked(QListWidgetItem *item);
     // 双击文件树中目录节点时展开/折叠（懒加载子节点）
     void onTreeItemExpanded(QTreeWidgetItem *item);
+    // 服务端 socket/handler 运行日志
+    void onRuntimeLog(const QString &category, const QString &msg);
+    // 实时应用日志筛选
+    void applyLogFilter();
 
 private:
+    struct LogEntry {
+        QDateTime time;
+        QString category;
+        QString message;
+    };
+
     // 构建某个用户的文件树（递归）
     void buildFileTree(const QString &rootPath, QTreeWidgetItem *parentItem);
     // 展示指定用户的文件结构
     void showUserFiles(const QString &userName);
     // 追加一条日志
-    void appendLog(const QString &msg);
+    void appendLog(const QString &msg, const QString &category = QString());
+    void setupLogFilter();
+    void refreshLogView();
+    bool logEntryVisible(const LogEntry &entry) const;
+    QString formatLogEntry(const LogEntry &entry) const;
 
     Ui::tcpServer *ui;
+    QComboBox *m_logCategoryFilter = nullptr;
+    QLineEdit *m_logKeywordFilter = nullptr;
+    QVector<LogEntry> m_logEntries;
 
     QString m_strIP;
     quint16 m_usPort;

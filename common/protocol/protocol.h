@@ -75,6 +75,7 @@ enum ENUM_MSG_TYPE{
     ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST,   //上传文件数据帧
     ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND, //下载文件数据帧
     ENUM_MSG_TYPE_CANCEL_DOWNLOAD_REQUEST,    //取消/暂停下载请求
+    ENUM_MSG_TYPE_DOWNLOAD_COMPLETE_REQUEST,  //客户端下载完成确认
 
     ENUM_MSG_TYPE_MAX = 0x00ffffff
 };
@@ -158,5 +159,8 @@ PDU *mkPDU(unit uiMsgLen);
  *   ENUM_MSG_TYPE_UPLOAD_FILE_DATA_REQUEST / ENUM_MSG_TYPE_DOWNLOAD_FILE_DATA_RESPOND
  *   caMsg: 文件数据块
  *   uiMsgLen: 文件数据块长度
+ * 下载完成确认:
+ *   ENUM_MSG_TYPE_DOWNLOAD_COMPLETE_REQUEST
+ *   caMsg: 远程文件路径，客户端本地写入完成后发送
  */
 #endif // PROTOCOL_H

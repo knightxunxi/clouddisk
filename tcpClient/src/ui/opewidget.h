@@ -18,11 +18,12 @@ public:
     Friend *getFriend();
     Book *getBook();
     void setCurrentUser(const QString &userName);
+    void showFilePage();
 
 signals:
 
-public slots:
-
+private slots:
+    void onNavChanged(int row);
 
 private:
     QLabel *m_pUserLabel;

@@ -32,15 +32,32 @@ void FileWorker::runSendFile()
         return;
     }
 
-    const int BUF = 4096;
+    const qint64 totalSize = QFileInfo(m_srcPath).size();
+    qint64 sentBytes = m_skipBytes;
+    qint64 nextLogBytes = sentBytes + 8 * 1024 * 1024;
+    qDebug() << "[FileWorker] 开始发送下载文件：" << m_srcPath
+             << "大小：" << totalSize
+             << "起始偏移：" << m_skipBytes;
+
+    const int BUF = 64 * 1024;
     char buf[BUF];
     qint64 ret = 0;
     while (!m_canceled && (ret = file.read(buf, BUF)) > 0) {
         emit dataBlock(QByteArray(buf, static_cast<int>(ret)));
-        msleep(1);
+        sentBytes += ret;
+        if (sentBytes >= nextLogBytes || sentBytes == totalSize) {
+            qDebug() << "[FileWorker] 下载发送进度：" << sentBytes << "/" << totalSize
+                     << m_srcPath;
+            nextLogBytes = sentBytes + 8 * 1024 * 1024;
+        }
     }
     file.close();
-    emit taskFinished(!m_canceled && ret == 0);
+    const bool success = !m_canceled && ret == 0;
+    qDebug() << "[FileWorker] 下载发送结束：" << m_srcPath
+             << "success=" << success
+             << "sent=" << sentBytes
+             << "total=" << totalSize;
+    emit taskFinished(success);
 }
 
 void FileWorker::runCopyFile()

@@ -7,12 +7,42 @@
 #include "opewidget.h"
 #include "sharefile.h"
 #include <QLabel>
+#include <QFileInfo>
+#include <QSettings>
+
+namespace {
+
+QString formatBytes(qint64 bytes)
+{
+    const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+    double value = static_cast<double>(bytes);
+    int unitIndex = 0;
+    while (value >= 1024.0 && unitIndex < 4) {
+        value /= 1024.0;
+        ++unitIndex;
+    }
+
+    const int decimals = unitIndex == 0 ? 0 : 2;
+    return QString("%1 %2").arg(value, 0, 'f', decimals).arg(units[unitIndex]);
+}
+
+QString resumeStorageKey(const QString &loginName, const QString &remotePath)
+{
+    const QByteArray encoded = remotePath.toUtf8().toBase64(
+                QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    return QString("downloads/%1/%2").arg(loginName, QString::fromLatin1(encoded));
+}
+
+} // namespace
 
 
 Book::Book(QWidget *parent) : QWidget(parent)
 {
     m_strEnterDir.clear();
+    m_strDownloadRemotePath.clear();
     m_uploadFileOffset = 0;
+    m_uploadTotalBytes = 0;
+    m_uploadSentBytes = 0;
     m_uploadThread = nullptr;
 
     m_pFileListWidget = new QListWidget;                  // 文件列表
@@ -51,6 +81,26 @@ Book::Book(QWidget *parent) : QWidget(parent)
     m_pSelectMoveToDirPB->setProperty("btnStyle", "default");
     m_pSelectMoveToDirPB->setEnabled(false);
 
+    m_pPauseDownloadPB = new QPushButton(QStringLiteral("暂停下载"));
+    m_pPauseDownloadPB->setProperty("btnStyle", "warning");
+    m_pPauseDownloadPB->setEnabled(false);
+
+    m_pResumeDownloadPB = new QPushButton(QStringLiteral("继续下载"));
+    m_pResumeDownloadPB->setProperty("btnStyle", "success");
+    m_pResumeDownloadPB->setEnabled(false);
+
+    m_pTransferStatusLabel = new QLabel(QStringLiteral("传输状态：空闲"));
+    m_pTransferStatusLabel->setStyleSheet("color: #000000; font-size: 12px;");
+
+    m_pTransferProgressBar = new QProgressBar;
+    m_pTransferProgressBar->setRange(0, 100);
+    m_pTransferProgressBar->setValue(0);
+    m_pTransferProgressBar->setTextVisible(true);
+    m_pTransferProgressBar->setFormat(QStringLiteral("0%"));
+    m_pTransferProgressBar->setStyleSheet(
+                "QProgressBar { color: #000000; background: #ffffff; border: 1px solid #b8c2cc; border-radius: 4px; text-align: center; }"
+                "QProgressBar::chunk { background: #2f80ed; border-radius: 3px; }");
+
     // 目录操作区
     QVBoxLayout *pDirVBL = new QVBoxLayout;
     pDirVBL->setSpacing(8);
@@ -78,10 +128,22 @@ Book::Book(QWidget *parent) : QWidget(parent)
     pFileVBL->addWidget(m_pSelectMoveToDirPB);
     pFileVBL->addStretch();
 
+    QVBoxLayout *pListVBL = new QVBoxLayout;
+    pListVBL->setSpacing(8);
+    pListVBL->addWidget(m_pFileListWidget, 1);
+    pListVBL->addWidget(m_pTransferStatusLabel);
+
+    QHBoxLayout *pTransferHBL = new QHBoxLayout;
+    pTransferHBL->setSpacing(8);
+    pTransferHBL->addWidget(m_pTransferProgressBar, 1);
+    pTransferHBL->addWidget(m_pPauseDownloadPB);
+    pTransferHBL->addWidget(m_pResumeDownloadPB);
+    pListVBL->addLayout(pTransferHBL);
+
     QHBoxLayout *pMain = new QHBoxLayout;
     pMain->setSpacing(10);
     pMain->setContentsMargins(12, 12, 12, 12);
-    pMain->addWidget(m_pFileListWidget, 1);
+    pMain->addLayout(pListVBL, 1);
     pMain->addLayout(pDirVBL);
     pMain->addLayout(pFileVBL);
 
@@ -99,6 +161,8 @@ Book::Book(QWidget *parent) : QWidget(parent)
     connect(m_pShareFilePB, SIGNAL(clicked(bool)), this, SLOT(shareFile()));
     connect(m_pMoveFilePB, SIGNAL(clicked(bool)), this, SLOT(moveFile()));
     connect(m_pSelectMoveToDirPB, SIGNAL(clicked(bool)), this, SLOT(selectDestDir()));
+    connect(m_pPauseDownloadPB, SIGNAL(clicked(bool)), this, SLOT(pauseDownload()));
+    connect(m_pResumeDownloadPB, SIGNAL(clicked(bool)), this, SLOT(resumeDownload()));
 }
 
 void Book::updateFileList(PDU *pdu)
@@ -148,6 +212,103 @@ QString Book::getFileSavePath()
 QString Book::getShareFileName()
 {
     return m_strShareFileName;
+}
+
+QString Book::getDownloadRemotePath() const
+{
+    return m_strDownloadRemotePath;
+}
+
+void Book::setTransferProgress(qint64 currentBytes, qint64 totalBytes, const QString &statusText)
+{
+    if (!statusText.isEmpty()) {
+        setTransferStatus(statusText);
+    }
+
+    if (totalBytes <= 0) {
+        m_pTransferProgressBar->setRange(0, 0);
+        m_pTransferProgressBar->setFormat(QStringLiteral("等待中"));
+        return;
+    }
+
+    const qint64 safeCurrent = qBound<qint64>(0, currentBytes, totalBytes);
+    const int value = static_cast<int>((safeCurrent * 1000) / totalBytes);
+    const double percent = totalBytes == 0
+            ? 0.0
+            : static_cast<double>(safeCurrent) * 100.0 / static_cast<double>(totalBytes);
+
+    m_pTransferProgressBar->setRange(0, 1000);
+    m_pTransferProgressBar->setValue(value);
+    m_pTransferProgressBar->setFormat(
+                QString("%1% (%2 / %3)")
+                .arg(percent, 0, 'f', 1)
+                .arg(formatBytes(safeCurrent))
+                .arg(formatBytes(totalBytes)));
+}
+
+void Book::setTransferStatus(const QString &statusText)
+{
+    const QString text = statusText.isEmpty() ? QStringLiteral("空闲") : statusText;
+    m_pTransferStatusLabel->setText(QStringLiteral("传输状态：%1").arg(text));
+}
+
+void Book::resetTransferProgress(const QString &statusText)
+{
+    m_pTransferProgressBar->setRange(0, 100);
+    m_pTransferProgressBar->setValue(0);
+    m_pTransferProgressBar->setFormat(QStringLiteral("0%"));
+    setTransferStatus(statusText);
+}
+
+void Book::setDownloadActive(bool active)
+{
+    m_pPauseDownloadPB->setEnabled(active);
+    if (active) {
+        m_pResumeDownloadPB->setEnabled(false);
+    }
+}
+
+void Book::setDownloadPaused(bool paused)
+{
+    m_pPauseDownloadPB->setEnabled(false);
+    m_pResumeDownloadPB->setEnabled(paused
+                                    && !m_strDownloadRemotePath.isEmpty()
+                                    && !m_strFileSavePath.isEmpty());
+}
+
+QString Book::resumePathForRemote(const QString &remotePath) const
+{
+    if (remotePath.isEmpty() || tcpClient::getInstance().loginName().isEmpty()) {
+        return QString();
+    }
+
+    QSettings settings("TinyDisk", "TinyDiskClient");
+    return settings.value(resumeStorageKey(tcpClient::getInstance().loginName(),
+                                           remotePath)).toString();
+}
+
+void Book::saveDownloadResume(const QString &remotePath, const QString &localPath)
+{
+    if (remotePath.isEmpty() || localPath.isEmpty()
+            || tcpClient::getInstance().loginName().isEmpty()) {
+        return;
+    }
+
+    QSettings settings("TinyDisk", "TinyDiskClient");
+    settings.setValue(resumeStorageKey(tcpClient::getInstance().loginName(),
+                                       remotePath),
+                      localPath);
+}
+
+void Book::clearDownloadResume(const QString &remotePath)
+{
+    if (remotePath.isEmpty() || tcpClient::getInstance().loginName().isEmpty()) {
+        return;
+    }
+
+    QSettings settings("TinyDisk", "TinyDiskClient");
+    settings.remove(resumeStorageKey(tcpClient::getInstance().loginName(),
+                                     remotePath));
 }
 
 
@@ -293,6 +454,11 @@ void Book::uploadFile()
         qint64 uploadFileSize = file.size();
         qint64 uploadedSize = 0;
         m_uploadFileOffset = uploadedSize; // 从该偏移量开始读取文件
+        m_uploadTotalBytes = uploadFileSize;
+        m_uploadSentBytes = uploadedSize;
+        setTransferProgress(m_uploadSentBytes,
+                            m_uploadTotalBytes,
+                            QStringLiteral("等待服务端接收上传"));
         QString strCurPath = tcpClient::getInstance().currentPath();
         PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
         pdu->uiMsgType = ENUM_MSG_TYPE_UPLOAD_FILE_REQUEST;
@@ -329,6 +495,9 @@ void Book::uploadFileData()
     // 线程结束后自动删除
     connect(m_uploadThread, &UploadThread::finished, m_uploadThread, &QObject::deleteLater);
     connect(m_uploadThread, &UploadThread::error, m_uploadThread, &QObject::deleteLater);
+    setTransferProgress(m_uploadSentBytes,
+                        m_uploadTotalBytes,
+                        QStringLiteral("上传中"));
     m_uploadThread->start();
     qDebug() << "上传线程启动，偏移量：" << m_uploadFileOffset;
 }
@@ -357,6 +526,13 @@ void Book::deleteFile()
 
 void Book::downloadFile()
 {
+    if (tcpClient::getInstance().isDownloadPaused()
+            && !m_strDownloadRemotePath.isEmpty()
+            && !m_strFileSavePath.isEmpty()) {
+        resumeDownload();
+        return;
+    }
+
     QListWidgetItem *pItem = m_pFileListWidget->currentItem();
     if(NULL == pItem)
     {
@@ -364,37 +540,96 @@ void Book::downloadFile()
     }
     else
     {
-        QString strFileSavePath = QFileDialog::getSaveFileName();
-        if(strFileSavePath.isEmpty())
-        {
-            QMessageBox::warning(this, "下载文件", "请选择文件保存位置");
-            m_strFileSavePath.clear();
-        }
-        else
-        {
-            m_strFileSavePath = strFileSavePath;
-            qDebug() << "文件保存的位置：" << m_strFileSavePath;
-
-        }
         QString strCurPath = tcpClient::getInstance().currentPath();
         QString downloadName = pItem->text();
-        // 检查本地已下载文件大小
-        QFileInfo fileInfo(m_strFileSavePath);
+        m_strDownloadRemotePath = strCurPath + '/' + downloadName;
+
+        QString strFileSavePath;
         qint64 downloadedSize = 0;
-        if (fileInfo.exists() && fileInfo.isFile()) {
-            downloadedSize = fileInfo.size();
-            qDebug() << "本地已存在部分文件，大小：" << downloadedSize;
+        const QString resumePath = !m_strFileSavePath.isEmpty()
+                ? m_strFileSavePath
+                : resumePathForRemote(m_strDownloadRemotePath);
+        if (!resumePath.isEmpty()) {
+            QFileInfo resumeInfo(resumePath);
+            if (resumeInfo.exists() && resumeInfo.isFile() && resumeInfo.size() > 0) {
+                bool continueDownload = tcpClient::getInstance().isDownloadPaused();
+                if (!continueDownload) {
+                    const int ret = QMessageBox::question(
+                                this,
+                                QStringLiteral("继续下载"),
+                                QStringLiteral("检测到未完成下载：\n%1\n已下载：%2\n是否继续？")
+                                .arg(resumePath)
+                                .arg(formatBytes(resumeInfo.size())));
+                    continueDownload = ret == QMessageBox::Yes;
+                }
+                if (continueDownload) {
+                    strFileSavePath = resumePath;
+                    downloadedSize = resumeInfo.size();
+                }
+            } else {
+                clearDownloadResume(m_strDownloadRemotePath);
+            }
         }
-        PDU *pdu = mkPDU(strCurPath.toUtf8().size() + 1);
-        pdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_REQUEST;
-        PduFieldCodec::writeDownloadFileRequest(pdu->caData,
-                                                downloadName,
-                                                downloadedSize);
-        PduFieldCodec::writeMessage(pdu, strCurPath);
-        tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
-        free(pdu);
-        pdu = NULL;
+
+        if (strFileSavePath.isEmpty()) {
+            strFileSavePath = QFileDialog::getSaveFileName(this,
+                                                           QStringLiteral("下载文件"),
+                                                           downloadName);
+            if(strFileSavePath.isEmpty())
+            {
+                QMessageBox::warning(this, "下载文件", "请选择文件保存位置");
+                m_strFileSavePath.clear();
+                resetTransferProgress(QStringLiteral("下载已取消"));
+                return;
+            }
+
+            QFileInfo fileInfo(strFileSavePath);
+            if (fileInfo.exists() && fileInfo.isFile()) {
+                downloadedSize = fileInfo.size();
+                qDebug() << "本地已存在部分文件，大小：" << downloadedSize;
+            }
+        }
+
+        m_strFileSavePath = strFileSavePath;
+        requestDownload(strCurPath,
+                        downloadName,
+                        m_strFileSavePath,
+                        downloadedSize,
+                        downloadedSize > 0
+                        ? QStringLiteral("继续下载")
+                        : QStringLiteral("请求下载"));
     }
+}
+
+void Book::requestDownload(const QString &currentPath,
+                           const QString &downloadName,
+                           const QString &savePath,
+                           qint64 downloadedSize,
+                           const QString &statusText)
+{
+    if (currentPath.isEmpty() || downloadName.isEmpty() || savePath.isEmpty()) {
+        QMessageBox::warning(this, "下载文件", "下载信息不完整，无法继续");
+        return;
+    }
+
+    m_strFileSavePath = savePath;
+    m_strDownloadRemotePath = currentPath + '/' + downloadName;
+    saveDownloadResume(m_strDownloadRemotePath, m_strFileSavePath);
+    setDownloadPaused(false);
+    setTransferProgress(downloadedSize,
+                        qMax<qint64>(downloadedSize, 1),
+                        statusText);
+    qDebug() << "文件保存的位置：" << m_strFileSavePath;
+
+    PDU *pdu = mkPDU(currentPath.toUtf8().size() + 1);
+    pdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_REQUEST;
+    PduFieldCodec::writeDownloadFileRequest(pdu->caData,
+                                            downloadName,
+                                            downloadedSize);
+    PduFieldCodec::writeMessage(pdu, currentPath);
+    tcpClient::getInstance().gettcpSocket().write((char*)pdu, pdu->uiPDULen);
+    free(pdu);
+    pdu = NULL;
 }
 
 void Book::shareFile()
@@ -488,13 +723,20 @@ void Book::onUploadDataBlock(const QByteArray &data)
 
 void Book::onUploadProgress(qint64 bytesRead)
 {
-    // 可以更新进度条，暂时只记录日志
-    qDebug() << "上传进度，数据块大小：" << bytesRead;
+    m_uploadSentBytes += bytesRead;
+    setTransferProgress(m_uploadSentBytes,
+                        m_uploadTotalBytes,
+                        QStringLiteral("上传中"));
+    qDebug() << "上传进度，已发送：" << m_uploadSentBytes
+             << "总大小：" << m_uploadTotalBytes;
 }
 
 void Book::onUploadFinished()
 {
     qDebug() << "上传线程完成";
+    setTransferProgress(m_uploadSentBytes,
+                        m_uploadTotalBytes,
+                        QStringLiteral("上传数据发送完成，等待服务端确认"));
     // 注意：已在 uploadFileData() 中连接了 finished->deleteLater，
     // 此处不再调用 wait()/delete，避免在信号处理中等待线程结束导致死锁
     m_uploadThread = nullptr;
@@ -503,6 +745,7 @@ void Book::onUploadFinished()
 void Book::onUploadError(const QString &msg)
 {
     qDebug() << "上传线程错误：" << msg;
+    setTransferStatus(QStringLiteral("上传失败"));
     QMessageBox::warning(this, "上传文件", msg);
     if (m_uploadThread) {
         m_uploadThread->cancel();
@@ -510,4 +753,40 @@ void Book::onUploadError(const QString &msg)
         // deleteLater 已在 uploadFileData() 中连接，线程结束后自动释放
         m_uploadThread = nullptr;
     }
+}
+
+void Book::pauseDownload()
+{
+    tcpClient::getInstance().pauseDownload();
+}
+
+void Book::resumeDownload()
+{
+    if (m_strDownloadRemotePath.isEmpty() || m_strFileSavePath.isEmpty()) {
+        QMessageBox::warning(this, "继续下载", "没有可继续的下载任务");
+        setDownloadPaused(false);
+        return;
+    }
+
+    QFileInfo fileInfo(m_strFileSavePath);
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        QMessageBox::warning(this, "继续下载", "本地未完成文件不存在，无法继续");
+        setDownloadPaused(false);
+        return;
+    }
+
+    const int index = m_strDownloadRemotePath.lastIndexOf('/');
+    if (index <= 0 || index >= m_strDownloadRemotePath.size() - 1) {
+        QMessageBox::warning(this, "继续下载", "远程文件路径无效，无法继续");
+        setDownloadPaused(false);
+        return;
+    }
+
+    const QString currentPath = m_strDownloadRemotePath.left(index);
+    const QString downloadName = m_strDownloadRemotePath.mid(index + 1);
+    requestDownload(currentPath,
+                    downloadName,
+                    m_strFileSavePath,
+                    fileInfo.size(),
+                    QStringLiteral("继续下载"));
 }

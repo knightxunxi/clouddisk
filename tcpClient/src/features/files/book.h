@@ -78,6 +78,7 @@ public:
     void setTransferStatus(const QString &statusText);
     void resetTransferProgress(const QString &statusText = QString());
     void setDownloadActive(bool active);
+    void setDownloadPaused(bool paused);
 
     QString resumePathForRemote(const QString &remotePath) const;
     void saveDownloadResume(const QString &remotePath, const QString &localPath);
@@ -109,8 +110,15 @@ private slots:
     void onUploadFinished();
     void onUploadError(const QString &msg);
     void pauseDownload();
+    void resumeDownload();
 
 private:
+    void requestDownload(const QString &currentPath,
+                         const QString &downloadName,
+                         const QString &savePath,
+                         qint64 downloadedSize,
+                         const QString &statusText);
+
     QListWidget *m_pFileListWidget;         // 文件列表
     QPushButton *m_pReturnPB;               // 返回主页面
     QPushButton *m_pCreateDirPB;            // 新建文件夹
@@ -124,6 +132,7 @@ private:
     QPushButton *m_pMoveFilePB;             //移动文件
     QPushButton *m_pSelectMoveToDirPB;      //移动文件到其他文件夹
     QPushButton *m_pPauseDownloadPB;        //暂停下载
+    QPushButton *m_pResumeDownloadPB;       //继续下载
     QProgressBar *m_pTransferProgressBar;   //传输进度
     QLabel *m_pTransferStatusLabel;         //传输状态
 

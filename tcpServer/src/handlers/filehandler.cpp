@@ -5,6 +5,7 @@
 #include "storageservice.h"
 
 #include <QByteArray>
+#include <QDebug>
 #include <QFileInfo>
 
 #include <cstdio>
@@ -160,11 +161,25 @@ void MyTcpSocket::handleUploadFileRequest(PDU *pdu)
     }
 
     if (openSuccess && m_uploadSession.isComplete()) {
+        emit behaviorLog(QStringLiteral("上传"),
+                         QStringLiteral("用户 %1 完成上传：%2，大小 %3 字节")
+                         .arg(m_strName, request.fileName)
+                         .arg(request.fileSize));
         m_uploadSession.reset();
         sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_OK);
     } else if (openSuccess) {
+        m_activeUploadPath = strNewPath;
+        m_activeUploadFileName = request.fileName;
+        emit behaviorLog(QStringLiteral("上传"),
+                         QStringLiteral("用户 %1 开始上传：%2，目标 %3，大小 %4 字节，断点 %5 字节")
+                         .arg(m_strName, request.fileName, strNewPath)
+                         .arg(request.fileSize)
+                         .arg(request.transferredSize));
         sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_RESUME);
     } else {
+        emit behaviorLog(QStringLiteral("异常"),
+                         QStringLiteral("用户 %1 上传请求失败：%2，路径 %3")
+                         .arg(m_strName, request.fileName, strPathRaw));
         sendSimpleResponse(this, ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND, UPLOAD_FILE_FAILED);
     }
 }
@@ -202,6 +217,7 @@ void MyTcpSocket::handleDownloadFileRequest(PDU *pdu)
     QString strNewPath;
 
     StorageService::DownloadInfo downloadInfo;
+    bool canDownload = false;
     if (request.valid
             && StorageService::resolveUserChildPath(m_strName, strPathRaw,
                                                     request.fileName,
@@ -209,21 +225,57 @@ void MyTcpSocket::handleDownloadFileRequest(PDU *pdu)
             && StorageService::isFile(strNewPath)) {
         downloadInfo = StorageService::downloadInfo(strNewPath,
                                                     request.transferredSize);
+        canDownload = true;
+    }
+
+    if (!canDownload) {
+        qDebug() << "[MyTcpSocket] 下载请求失败，用户：" << m_strName
+                 << "文件：" << request.fileName
+                 << "路径：" << strPathRaw;
+        emit behaviorLog(QStringLiteral("异常"),
+                         QStringLiteral("用户 %1 下载请求失败：%2，路径 %3")
+                         .arg(m_strName, request.fileName, strPathRaw));
+    } else {
+        qDebug() << "[MyTcpSocket] 下载请求，用户：" << m_strName
+                 << "文件：" << strNewPath
+                 << "大小：" << downloadInfo.fileSize
+                 << "断点：" << downloadInfo.skipSize;
     }
 
     PDU *respdu = mkPDU(0);
     respdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_FILE_RESPOND;
-    PduFieldCodec::writeDownloadFileResponse(respdu->caData,
-                                             request.fileName,
-                                             downloadInfo.fileSize,
-                                             downloadInfo.skipSize);
+    if (canDownload) {
+        PduFieldCodec::writeDownloadFileResponse(respdu->caData,
+                                                 request.fileName,
+                                                 downloadInfo.fileSize,
+                                                 downloadInfo.skipSize);
+    } else {
+        PduFieldCodec::writeDownloadFileResponse(respdu->caData,
+                                                 QString(),
+                                                 -1,
+                                                 0);
+    }
     write((char*)respdu, respdu->uiPDULen);
     free(respdu); respdu = nullptr;
 
-    if (downloadInfo.skipSize < downloadInfo.fileSize) {
+    if (canDownload && downloadInfo.skipSize < downloadInfo.fileSize) {
+        m_activeDownloadPath = strNewPath;
+        m_activeDownloadFileName = request.fileName;
+        m_downloadCanceledByClient = false;
+        m_downloadSendCompleted = false;
+        emit behaviorLog(QStringLiteral("下载"),
+                         QStringLiteral("用户 %1 开始下载：%2，来源 %3，大小 %4 字节，断点 %5 字节")
+                         .arg(m_strName, request.fileName, strNewPath)
+                         .arg(downloadInfo.fileSize)
+                         .arg(downloadInfo.skipSize));
         FileWorker *worker = new FileWorker(this);
         worker->setupSendFile(strNewPath, downloadInfo.skipSize);
         startFileWorker(worker);
+    } else if (canDownload) {
+        qDebug() << "[MyTcpSocket] 客户端文件已完整，无需继续发送：" << strNewPath;
+        emit behaviorLog(QStringLiteral("下载"),
+                         QStringLiteral("用户 %1 请求下载：%2，客户端文件已完整，无需发送")
+                         .arg(m_strName, request.fileName));
     }
 }
 

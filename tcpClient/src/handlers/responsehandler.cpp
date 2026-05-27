@@ -17,6 +17,11 @@ QString dataText(PDU *pdu)
     return PduFieldCodec::fixedString(pdu->caData, sizeof(pdu->caData));
 }
 
+void refreshCurrentFileList()
+{
+    OpeWidget::getInstance().getBook()->flushFile();
+}
+
 } // namespace
 
 void tcpClient::dispatchResponse(PDU *pdu)
@@ -78,6 +83,7 @@ void tcpClient::handleSessionResponse(PDU *pdu)
             QMessageBox::information(this, "登录", LOGIN_OK);
             OpeWidget::getInstance().setCurrentUser(m_strLoginName);
             OpeWidget::getInstance().show();
+            OpeWidget::getInstance().showFilePage();
             hide();
         } else {
             QMessageBox::warning(this, "登录", LOGIN_FAILED);
@@ -172,8 +178,14 @@ void tcpClient::handleFileResponse(PDU *pdu)
     switch (pdu->uiMsgType)
     {
     case ENUM_MSG_TYPE_CREATE_DIR_RESPOND:
-        QMessageBox::information(this, "创建文件夹", dataText(pdu));
+    {
+        const QString text = dataText(pdu);
+        QMessageBox::information(this, "创建文件夹", text);
+        if (text == CREATE_DIR_OK) {
+            refreshCurrentFileList();
+        }
         break;
+    }
     case ENUM_MSG_TYPE_FLUSH_FILE_RESPOND:
     {
         OpeWidget::getInstance().getBook()->updateFileList(pdu);
@@ -185,35 +197,67 @@ void tcpClient::handleFileResponse(PDU *pdu)
         break;
     }
     case ENUM_MSG_TYPE_DELETE_DIR_RESPOND:
-        QMessageBox::information(this, "删除文件夹", dataText(pdu));
+    {
+        const QString text = dataText(pdu);
+        QMessageBox::information(this, "删除文件夹", text);
+        if (text == DIR_DELETE_OK) {
+            refreshCurrentFileList();
+        }
         break;
+    }
     case ENUM_MSG_TYPE_RENAME_FILE_RESPOND:
-        QMessageBox::information(this, "重命名文件", dataText(pdu));
+    {
+        const QString text = dataText(pdu);
+        QMessageBox::information(this, "重命名文件", text);
+        if (text == RENAME_FILE_OK) {
+            refreshCurrentFileList();
+        }
         break;
+    }
     case ENUM_MSG_TYPE_ENTER_DIR_RESPOND:
         OpeWidget::getInstance().getBook()->clearEnterDir();
         QMessageBox::information(this, "进入文件夹", dataText(pdu));
         break;
     case ENUM_MSG_TYPE_UPLOAD_FILE_RESPOND:
-        if (dataText(pdu) == UPLOAD_FILE_RESUME) {
-            OpeWidget::getInstance().getBook()->uploadFileData();
+    {
+        const QString text = dataText(pdu);
+        Book *book = OpeWidget::getInstance().getBook();
+        if (text == UPLOAD_FILE_RESUME) {
+            book->setTransferStatus(QStringLiteral("上传中"));
+            book->uploadFileData();
+        } else if (text == UPLOAD_FILE_OK) {
+            book->setTransferProgress(1, 1, QStringLiteral("上传完成"));
+            QMessageBox::information(this, "上传文件", text);
+            refreshCurrentFileList();
         } else {
-            QMessageBox::information(this, "上传文件", dataText(pdu));
+            book->setTransferStatus(QStringLiteral("上传失败"));
+            QMessageBox::warning(this, "上传文件", text);
         }
         break;
+    }
     case ENUM_MSG_TYPE_DELETE_FILE_RESPOND:
-        QMessageBox::information(this, "删除文件", dataText(pdu));
+    {
+        const QString text = dataText(pdu);
+        QMessageBox::information(this, "删除文件", text);
+        if (text == FILE_DELETE_OK) {
+            refreshCurrentFileList();
+        }
         break;
+    }
     case ENUM_MSG_TYPE_DOWNLOAD_FILE_RESPOND:
     {
         const PduFieldCodec::DownloadFileResponse response =
                 PduFieldCodec::downloadFileResponse(pdu->caData);
-        const QString savePath = OpeWidget::getInstance().getBook()->getFileSavePath();
+        Book *book = OpeWidget::getInstance().getBook();
+        const QString savePath = book->getFileSavePath();
         qDebug() << "download response:" << response.fileName
                  << "total:" << response.fileSize
                  << "skip:" << response.skipSize;
 
         if (!response.valid || savePath.isEmpty()) {
+            book->setTransferStatus(QStringLiteral("下载失败"));
+            book->setDownloadActive(false);
+            book->setDownloadPaused(false);
             QMessageBox::warning(this, "下载文件", "下载文件失败");
             break;
         }
@@ -221,21 +265,44 @@ void tcpClient::handleFileResponse(PDU *pdu)
             QFile file(savePath);
             if (file.open(QIODevice::WriteOnly)) {
                 file.close();
+                book->clearDownloadResume(book->getDownloadRemotePath());
+                book->setTransferProgress(1, 1, QStringLiteral("下载完成"));
+                book->setDownloadActive(false);
+                book->setDownloadPaused(false);
                 QMessageBox::information(this, "下载文件", "下载文件成功");
             } else {
+                book->setTransferStatus(QStringLiteral("下载失败"));
+                book->setDownloadActive(false);
+                book->setDownloadPaused(false);
                 QMessageBox::warning(this, "下载文件", "无法创建保存文件");
             }
             break;
         }
         if (!m_downloadSession.start(savePath, response.fileSize, response.skipSize)) {
+            book->setTransferStatus(QStringLiteral("下载会话初始化失败"));
+            book->setDownloadActive(false);
+            book->setDownloadPaused(false);
             QMessageBox::warning(this, "下载文件", "下载会话初始化失败");
             break;
         }
         if (m_downloadSession.isComplete()) {
+            book->clearDownloadResume(book->getDownloadRemotePath());
+            book->setTransferProgress(response.fileSize,
+                                      response.fileSize,
+                                      QStringLiteral("下载完成"));
+            book->setDownloadActive(false);
+            book->setDownloadPaused(false);
             m_downloadSession.reset();
             QMessageBox::information(this, "下载文件", "下载文件成功");
             break;
         }
+        book->setTransferProgress(response.skipSize,
+                                  response.fileSize,
+                                  response.skipSize > 0
+                                  ? QStringLiteral("继续下载")
+                                  : QStringLiteral("下载中"));
+        book->setDownloadActive(true);
+        book->setDownloadPaused(false);
         startDownload(savePath, response.skipSize);
         break;
     }
@@ -243,8 +310,14 @@ void tcpClient::handleFileResponse(PDU *pdu)
         handleDownloadData(PduFieldCodec::messageBytes(pdu));
         break;
     case ENUM_MSG_TYPE_MOVE_FILE_RESPOND:
-        QMessageBox::information(this, "移动文件", dataText(pdu));
+    {
+        const QString text = dataText(pdu);
+        QMessageBox::information(this, "移动文件", text);
+        if (text == MOVE_FILE_OK) {
+            refreshCurrentFileList();
+        }
         break;
+    }
     default:
         break;
     }

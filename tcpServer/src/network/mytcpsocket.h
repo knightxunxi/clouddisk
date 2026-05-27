@@ -23,6 +23,7 @@ public:
 signals:
     void offline(MyTcpSocket *mysocket);
     void userListChanged();   // 注册、登录等用户列表变化后发出，通知 UI 刷新
+    void behaviorLog(const QString &category, const QString &message);
 
 public slots:
     void recvMsg();
@@ -61,6 +62,8 @@ private:
     void handleUploadFileDataRequest(PDU *pdu);
     void handleDeleteFileRequest(PDU *pdu);
     void handleDownloadFileRequest(PDU *pdu);
+    void handleCancelDownloadRequest(PDU *pdu);
+    void handleDownloadCompleteRequest(PDU *pdu);
     void handleShareFileRequest(PDU *pdu);
     void handleShareFileNoteRespond(PDU *pdu);
     void handleMoveFileRequest(PDU *pdu);
@@ -69,6 +72,12 @@ private:
     PacketCodec m_packetCodec;
     UploadSession m_uploadSession;
     FileWorker *m_fileWorker = nullptr;  // 当前文件工作线程
+    QString m_activeUploadPath;
+    QString m_activeUploadFileName;
+    QString m_activeDownloadPath;
+    QString m_activeDownloadFileName;
+    bool m_downloadCanceledByClient = false;
+    bool m_downloadSendCompleted = false;
 };
 
 #endif // MYTCPSOCKET_H

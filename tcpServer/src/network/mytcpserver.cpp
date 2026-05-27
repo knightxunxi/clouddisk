@@ -16,12 +16,15 @@ MyTcpServer &MyTcpServer::getInstance()
 void MyTcpServer::incomingConnection(qintptr socketDescriptor)
 {
     qDebug() << "new client connected";
+    emit runtimeLog(QStringLiteral("连接"), QStringLiteral("新客户端已连接"));
     MyTcpSocket *pTcpSocket = new MyTcpSocket;
     pTcpSocket->setSocketDescriptor(socketDescriptor);
     m_tcpSocketList.append(pTcpSocket);
     connect(pTcpSocket, SIGNAL(offline(MyTcpSocket*)), this, SLOT(deleteSocket(MyTcpSocket*)));
     // 注册、登录等用户列表变化时通知 UI 刷新
     connect(pTcpSocket, SIGNAL(userListChanged()), this, SIGNAL(userStatusChanged()));
+    connect(pTcpSocket, SIGNAL(behaviorLog(QString,QString)),
+            this, SIGNAL(runtimeLog(QString,QString)));
 }
 
 void MyTcpServer::resend(const char *pername, PDU *pdu)

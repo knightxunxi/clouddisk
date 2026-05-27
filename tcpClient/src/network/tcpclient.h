@@ -63,6 +63,9 @@ public:
     // 下载文件相关
     void startDownload(const QString &filePath, qint64 offset);
     void stopDownload();
+    void pauseDownload();
+    bool isDownloading() const;
+    bool isDownloadPaused() const;
 
 public slots:
     void showConnect();
@@ -99,6 +102,7 @@ private:
     QString m_strCurPath;
 
     DownloadThread *m_downloadThread;
+    bool m_downloadPaused = false;
 };
 
 #endif // TCPCLIENT_H

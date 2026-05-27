@@ -25,6 +25,7 @@ void DownloadThread::cancel()
     {
         QMutexLocker locker(&m_mutex);
         m_canceled = true;
+        m_queue.clear();
         m_cond.wakeAll();
     }
 }
@@ -102,6 +103,7 @@ tcpClient::tcpClient(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::tcpClient)
     , m_downloadThread(nullptr)
+    , m_downloadPaused(false)
 {
     ui->setupUi(this);
 
@@ -172,6 +174,7 @@ void tcpClient::setCurrentPath(QString preContentPath)
 void tcpClient::startDownload(const QString &filePath, qint64 offset)
 {
     stopDownload();
+    m_downloadPaused = false;
     m_downloadThread = new DownloadThread(this);
     m_downloadThread->setup(filePath, offset);
     connect(m_downloadThread, &DownloadThread::bytesWritten,
@@ -193,15 +196,63 @@ void tcpClient::stopDownload()
     }
 }
 
+void tcpClient::pauseDownload()
+{
+    if (!m_downloadThread || !m_downloadSession.isActive()) {
+        OpeWidget::getInstance().getBook()->setTransferStatus(QStringLiteral("当前没有正在下载的任务"));
+        OpeWidget::getInstance().getBook()->setDownloadActive(false);
+        OpeWidget::getInstance().getBook()->setDownloadPaused(false);
+        return;
+    }
+
+    PDU *pdu = mkPDU(0);
+    pdu->uiMsgType = ENUM_MSG_TYPE_CANCEL_DOWNLOAD_REQUEST;
+    m_tcpSocket.write((char*)pdu, pdu->uiPDULen);
+    free(pdu);
+    pdu = nullptr;
+
+    m_downloadPaused = true;
+    const qint64 receivedBytes = m_downloadSession.receivedBytes();
+    const qint64 totalBytes = m_downloadSession.totalBytes();
+    stopDownload();
+
+    OpeWidget::getInstance().getBook()->setTransferProgress(receivedBytes,
+                                                            totalBytes,
+                                                            QStringLiteral("下载已暂停"));
+    OpeWidget::getInstance().getBook()->setDownloadActive(false);
+    OpeWidget::getInstance().getBook()->setDownloadPaused(true);
+    qDebug() << "下载已暂停，已接收：" << receivedBytes << "总大小：" << totalBytes;
+}
+
+bool tcpClient::isDownloading() const
+{
+    return m_downloadThread != nullptr && m_downloadSession.isActive();
+}
+
+bool tcpClient::isDownloadPaused() const
+{
+    return m_downloadPaused;
+}
+
 void tcpClient::onDownloadBytesWritten(qint64 bytes)
 {
     if (!m_downloadSession.addBytes(bytes)) {
         qDebug() << "下载失败：收到超出会话范围的数据块" << bytes;
+        OpeWidget::getInstance().getBook()->setTransferStatus(QStringLiteral("下载失败"));
+        OpeWidget::getInstance().getBook()->setDownloadActive(false);
+        OpeWidget::getInstance().getBook()->setDownloadPaused(false);
         m_downloadSession.reset();
         QMessageBox::critical(this, "下载文件", "下载文件失败");
         stopDownload();
         return;
     }
+
+    OpeWidget::getInstance().getBook()->setTransferProgress(
+                m_downloadSession.receivedBytes(),
+                m_downloadSession.totalBytes(),
+                m_downloadPaused
+                ? QStringLiteral("下载已暂停")
+                : QStringLiteral("下载中"));
 
     qDebug() << "下载写入数据块大小：" << bytes
              << "，已接收：" << m_downloadSession.receivedBytes()
@@ -209,6 +260,22 @@ void tcpClient::onDownloadBytesWritten(qint64 bytes)
 
     if (m_downloadSession.isComplete())
     {
+        Book *book = OpeWidget::getInstance().getBook();
+        const QByteArray remotePath = book->getDownloadRemotePath().toUtf8();
+        PDU *pdu = mkPDU(static_cast<unit>(remotePath.size() + 1));
+        pdu->uiMsgType = ENUM_MSG_TYPE_DOWNLOAD_COMPLETE_REQUEST;
+        PduFieldCodec::writeMessage(pdu, remotePath);
+        m_tcpSocket.write((char*)pdu, pdu->uiPDULen);
+        free(pdu);
+        pdu = nullptr;
+
+        book->clearDownloadResume(book->getDownloadRemotePath());
+        book->setTransferProgress(m_downloadSession.totalBytes(),
+                                  m_downloadSession.totalBytes(),
+                                  QStringLiteral("下载完成"));
+        book->setDownloadActive(false);
+        book->setDownloadPaused(false);
+        m_downloadPaused = false;
         m_downloadSession.reset();
         QMessageBox::information(this, "下载文件", "下载文件成功");
         qDebug() << "下载完成";
@@ -219,6 +286,10 @@ void tcpClient::onDownloadBytesWritten(qint64 bytes)
 void tcpClient::onDownloadFinished(bool success, const QString &msg)
 {
     if (!success && m_downloadSession.isActive()) {
+        OpeWidget::getInstance().getBook()->setTransferStatus(QStringLiteral("下载失败"));
+        OpeWidget::getInstance().getBook()->setDownloadActive(false);
+        OpeWidget::getInstance().getBook()->setDownloadPaused(false);
+        m_downloadPaused = false;
         m_downloadSession.reset();
         QMessageBox::warning(this, "下载文件", msg);
         qDebug() << "下载线程异常结束：" << msg;

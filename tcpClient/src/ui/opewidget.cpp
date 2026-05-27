@@ -234,7 +234,7 @@ OpeWidget::OpeWidget(QWidget *parent) : QWidget(parent)
     pMain->addWidget(m_pSW, 1);
     setLayout(pMain);
 
-    connect(m_pListW, SIGNAL(currentRowChanged(int)), m_pSW, SLOT(setCurrentIndex(int)));
+    connect(m_pListW, SIGNAL(currentRowChanged(int)), this, SLOT(onNavChanged(int)));
 }
 
 OpeWidget &OpeWidget::getInstance()
@@ -262,4 +262,25 @@ void OpeWidget::setCurrentUser(const QString &userName)
 
     m_pUserLabel->setText(QStringLiteral("当前用户：\n%1").arg(displayName));
     setWindowTitle(QStringLiteral("TinyDisk - %1").arg(displayName));
+}
+
+void OpeWidget::showFilePage()
+{
+    if (m_pListW->currentRow() != 1) {
+        m_pListW->setCurrentRow(1);
+    } else {
+        onNavChanged(1);
+    }
+}
+
+void OpeWidget::onNavChanged(int row)
+{
+    if (row < 0 || row >= m_pSW->count()) {
+        return;
+    }
+
+    m_pSW->setCurrentIndex(row);
+    if (row == 1) {
+        m_pBook->flushFile();
+    }
 }

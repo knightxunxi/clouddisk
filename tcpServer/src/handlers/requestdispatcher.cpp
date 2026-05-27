@@ -64,6 +64,12 @@ void MyTcpSocket::handlePdu(PDU *pdu)
     case ENUM_MSG_TYPE_DOWNLOAD_FILE_REQUEST:
         handleDownloadFileRequest(pdu);
         break;
+    case ENUM_MSG_TYPE_CANCEL_DOWNLOAD_REQUEST:
+        handleCancelDownloadRequest(pdu);
+        break;
+    case ENUM_MSG_TYPE_DOWNLOAD_COMPLETE_REQUEST:
+        handleDownloadCompleteRequest(pdu);
+        break;
     case ENUM_MSG_TYPE_SHARE_FILE_REQUEST:
         handleShareFileRequest(pdu);
         break;
